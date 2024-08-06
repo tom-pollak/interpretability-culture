@@ -1,0 +1,1 @@
+./main.py --result_dir=results_noise --nb_train_samples=40000 --nb_test_samples=2000 --grids_world_tasks=replace_color,translate,grow,half_fill,frame,detect,corners,contact --accuracy_to_make_c_quizzes=0.95 --prompt_noise=0.05 --seed=307451 --resume
