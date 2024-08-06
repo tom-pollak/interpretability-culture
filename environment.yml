@@ -1,0 +1,12 @@
+name: culture
+channels:
+- conda-forge
+- pytorch
+dependencies:
+- ipykernel
+- pycairo
+- python=3.11
+- pytorch
+- torchvision
+- tqdm
+
