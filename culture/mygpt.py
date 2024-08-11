@@ -51,6 +51,18 @@ class BracketedSequence:
 
 ######################################################################
 
+class ActivationCacheWrapper(nn.Module):
+    def __init__(self, name, cache, *f):
+        super().__init__()
+        self.name = name
+        self.cache = cache
+        self.f = f[0] if len(f) == 1 else nn.Sequential(*f)
+
+    def forward(self, x: BracketedSequence):
+        x = self.f(x)
+        self.cache[self.name] = x.x.clone()
+        return x
+
 
 class CacheWrapper(nn.Module):
     def __init__(self, *f):
@@ -257,20 +269,24 @@ class MyGPT(nn.Module):
         len_max=1e5,
     ):
         super().__init__()
+        self.activation_cache = {}
+
 
         assert dim_model % nb_heads == 0
 
         self.temperature = 1.0
 
-        self.embedding = nn.Sequential(
+        self.embedding = ActivationCacheWrapper("embed", self.activation_cache,
+        nn.Sequential(
             CacheWrapper(nn.Embedding(vocabulary_size, dim_model), nn.Dropout(dropout)),
             AddPositionalEncoding(len_max),
-        )
+        ))
 
         trunk_blocks = []
 
         for b in range(nb_blocks):
             trunk_blocks += [
+                ActivationCacheWrapper(f"block.{b}.attn", self.activation_cache,
                 WithResidual(
                     CacheWrapper(
                         nn.LayerNorm((dim_model,)),
@@ -284,7 +300,8 @@ class MyGPT(nn.Module):
                         causal=causal,
                         attention_dropout=dropout,
                     ),
-                ),
+                )),
+                ActivationCacheWrapper(f"block.{b}.mlp", self.activation_cache,
                 WithResidual(
                     CacheWrapper(
                         nn.LayerNorm((dim_model,)),
@@ -294,14 +311,15 @@ class MyGPT(nn.Module):
                         nn.Linear(in_features=dim_hidden, out_features=dim_model),
                         nn.Dropout(dropout),
                     ),
-                ),
+                )),
             ]
 
         self.trunk = nn.Sequential(*trunk_blocks)
 
-        self.readout = CacheWrapper(
+        self.readout = ActivationCacheWrapper(f"unembed", self.activation_cache,
+        CacheWrapper(
             nn.Linear(in_features=dim_model, out_features=vocabulary_size)
-        )
+        ))
 
         # -------------------------------------------------------
         if autoencoder_dim > 0:
@@ -332,6 +350,7 @@ class MyGPT(nn.Module):
                     m.weight.fill_(1.0)
 
     def forward(self, bs):
+        self.activation_cache.clear()  # Clear previous activations
         bs = BracketedSequence(F.pad(bs.x, (1, -1)), bs.first, bs.nb)
         bs = self.embedding(bs)
         bs = self.trunk(bs)
