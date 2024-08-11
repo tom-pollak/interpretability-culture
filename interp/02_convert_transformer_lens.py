@@ -88,12 +88,26 @@ for k in range(nb_gpts):
 current_epoch = 0
 n_epoch = current_epoch + 1
 
+
+def update_state_dict_keys(state_dict):
+    new_state_dict = {}
+    for key, value in state_dict.items():
+        if key.startswith("trunk."):
+            parts = key.split(".")
+            new_key = f"{parts[0]}.{parts[1]}.f.{'.'.join(parts[2:])}"
+        else:
+            parts = key.split(".")
+            new_key = f"{parts[0]}.f.{'.'.join(parts[1:])}"
+        new_state_dict[new_key] = value
+    return new_state_dict
+
 for model in models:
     filename = f"gpt_{model.id:03d}.pth"
 
     try:
         d = t.load(result_dir / filename, map_location="cpu")
-        model.load_state_dict(d[0])
+        sd = update_state_dict_keys(d[0])
+        model.load_state_dict(sd)
         model.main_test_accuracy = d[1]
         print(f"successfully loaded {filename}")
     except FileNotFoundError:
@@ -181,10 +195,9 @@ ln_final.b (d_model)
 }
 """
 
-
 def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
     state_dict = {}
-    tok_embedding = model.embedding[0].f[0]
+    tok_embedding = model.embedding.f[0].f[0]
     W_E = tok_embedding.weight
     state_dict["embed.W_E"] = W_E
 
@@ -195,12 +208,12 @@ def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
         attn_idx = l * 2  # evens
         mlp_idx = l * 2 + 1  # odds
 
-        ln1 = model.trunk[attn_idx].f[0].f[0]
-        attn_block = model.trunk[attn_idx].f[1]
+        ln1 = model.trunk[attn_idx].f.f[0].f[0]
+        attn_block = model.trunk[attn_idx].f.f[1]
 
-        ln2 = model.trunk[mlp_idx].f.f[0]
-        up_proj = model.trunk[mlp_idx].f.f[2]
-        down_proj = model.trunk[mlp_idx].f.f[4]
+        ln2 = model.trunk[mlp_idx].f.f.f[0]
+        up_proj = model.trunk[mlp_idx].f.f.f[2]
+        down_proj = model.trunk[mlp_idx].f.f.f[4]
 
         W_Q = attn_block.w_q.data.transpose(-1, -2)
         W_K = attn_block.w_k.data.transpose(-1, -2)
@@ -234,7 +247,7 @@ def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
         state_dict[f"blocks.{l}.mlp.W_out"] = down_proj.weight.T
         state_dict[f"blocks.{l}.mlp.b_out"] = down_proj.bias
 
-    unembed = model.readout.f
+    unembed = model.readout.f.f
     W_U = unembed.weight.T
     b_U = unembed.bias
     state_dict["unembed.W_U"] = W_U
@@ -244,12 +257,10 @@ def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
 
 
 model = models[0]
-print("original model")
-print(model)
+# print(model)
 state_dict = convert_culture_weights(model, cfg)
 gpt = HookedTransformer(cfg)
 gpt.id = 0
-print("hooked transformer")
 print(gpt)
 errors = gpt.load_and_process_state_dict(
     state_dict,
@@ -325,18 +336,30 @@ state = t.load(result_dir / filename, weights_only=False)
 print(f"successfully loaded {filename}")
 current_epoch = state["current_epoch"]
 
-with t.autograd.no_grad():
-    gpt.eval().to(main_device)
-    model.eval().to(main_device)
-    full_input, _ = quiz_machine.data_input(gpt, split="test")
-    inp = full_input.split(batch_size)[0].to(main_device)
-    gpt_out = gpt(inp)
-    mygpt_out = model(mygpt.BracketedSequence(inp)).x
-
-    print(gpt_out[0, :5], mygpt_out[0, :5])
-    print(t.allclose(gpt_out, mygpt_out, atol=1e-6))
 
 
 # %%
 
-with t.inference_mode()
+gpt.eval().to(main_device)
+model.eval().to(main_device)
+full_input, _ = quiz_machine.data_input(gpt, split="test")
+inp = full_input[0][None, :].to(main_device)
+
+inpt_mygpt = mygpt.BracketedSequence(inp)
+inp_ht = mygpt.BracketedSequence(F.pad(inpt_mygpt.x, (1, -1)), inpt_mygpt.first, inpt_mygpt.nb).x
+
+with t.inference_mode():
+    logits_ht, cache_ht = gpt.run_with_cache(inp_ht, remove_batch_dim=False)
+    mygpt_out = model(inpt_mygpt).x
+
+print(logits_ht[0, :5], mygpt_out[0, :5])
+print(t.allclose(logits_ht, mygpt_out, atol=1e-6))
+
+# %%
+
+print("embed close:", t.allclose(cache_ht['blocks.0.hook_resid_pre'], model.activation_cache['embed'], atol=1e-4))
+
+# %%
+cache_ht['mlp_out', 0], model.activation_cache['block.0.attn']
+
+
