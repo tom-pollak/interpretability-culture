@@ -20,7 +20,8 @@ assert culture_dir.exists() and result_dir.exists()
 if str(culture_dir) not in sys.path:
     sys.path.append(str(culture_dir.resolve()))
 
-import grids, quiz_machine, mygpt
+import grids, quiz_machine
+import mygpt
 
 # %%
 
@@ -218,9 +219,6 @@ log_string(f"current_test_accuracies {cta}")
 
 # %%
 
-### Testing ###
-
-
 def run_tests(model, quiz_machine, local_device=main_device):
     with t.autograd.no_grad():
         model.eval().to(local_device)
@@ -228,8 +226,6 @@ def run_tests(model, quiz_machine, local_device=main_device):
         nb_test_samples, acc_test_loss = 0, 0.0
         nb_samples_accumulated = 0
 
-        full_input, _ = quiz_machine.data_input(model, split="test")
-        src = full_input.split(batch_size)
 
         for input in tqdm.tqdm(src, dynamic_ncols=True, desc="test"):
             input = input.to(local_device)
@@ -250,10 +246,40 @@ def run_tests(model, quiz_machine, local_device=main_device):
         )
 
 
-for model in models:
-    run_tests(model, quiz_machine)
-
-cta = " ".join([f"{float(m.main_test_accuracy):.04f}" for m in models])
-log_string(f"after testing: {cta}")
 
 # %%
+
+model = models[0]
+full_input, _ = quiz_machine.data_input(model, split="test")
+src = full_input.split(batch_size)[:3] # 3 batches
+
+# %%
+
+with t.inference_mode():
+    input = src[0].to(main_device)
+    output = model(mygpt.BracketedSequence(input)).x
+    print(input.shape, output.shape)
+    loss = F.cross_entropy(output.transpose(1, 2), input)
+    print(loss)
+
+# %%
+
+sequence = t.tensor([
+    [1, 5, 6, 7, 2, 8, 9, 10, 3, 11, 12, 13, 4, 0, 0],  # Example 1
+    [1, 5, 5, 5, 2, 6, 6, 6, 3, 7, 7, 7, 4, 0, 0],  # Example 2
+])
+
+bs = mygpt.BracketedSequence(sequence, first=0, nb=8)
+# %%
+
+from dataclasses import dataclass
+from datasets import load_dataset
+from transformers import AutoTokenizer
+
+# %%
+
+# even are attention, odd are mlp
+
+layers = [] # 24 in total
+
+model.trunk[1].f
