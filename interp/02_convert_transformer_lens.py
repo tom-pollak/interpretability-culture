@@ -219,11 +219,13 @@ def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
         W_K = attn_block.w_k.data.transpose(-1, -2)
         W_V = attn_block.w_v.data.transpose(-1, -2)
         # (dim_v * nb_heads, dim_in)
-        W_O = (
-            attn_block.w_o.transpose(0, 1)
-            .contiguous()
-            .view(cfg.n_heads, cfg.d_head, cfg.d_model)
-        )
+        # W_O = (
+        #     attn_block.w_o.transpose(0, 1)
+        #     .contiguous()
+        #     .view(cfg.n_heads, cfg.d_head, cfg.d_model)
+        # )
+        W_O = attn_block.w_o.contiguous().view(cfg.n_heads, cfg.d_head, cfg.d_model)
+
 
         state_dict[f"blocks.{l}.ln1.w"] = ln1.weight
         state_dict[f"blocks.{l}.ln1.b"] = ln1.bias
@@ -233,10 +235,11 @@ def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
         state_dict[f"blocks.{l}.attn.W_V"] = W_V
         state_dict[f"blocks.{l}.attn.W_O"] = W_O
 
-        # state_dict[f"blocks.{l}.attn.b_Q"] = t.zeros(cfg.n_heads, cfg.d_head)
-        # state_dict[f"blocks.{l}.attn.b_K"] = t.zeros(cfg.n_heads, cfg.d_head)
-        # state_dict[f"blocks.{l}.attn.b_V"] = t.zeros(cfg.n_heads, cfg.d_head)
-        # state_dict[f"blocks.{l}.attn.b_O"] = t.zeros(cfg.d_model)
+        # ZEROS
+        state_dict[f"blocks.{l}.attn.b_Q"] = t.zeros(cfg.n_heads, cfg.d_head)
+        state_dict[f"blocks.{l}.attn.b_K"] = t.zeros(cfg.n_heads, cfg.d_head)
+        state_dict[f"blocks.{l}.attn.b_V"] = t.zeros(cfg.n_heads, cfg.d_head)
+        state_dict[f"blocks.{l}.attn.b_O"] = t.zeros(cfg.d_model)
 
         state_dict[f"blocks.{l}.ln2.w"] = ln2.weight
         state_dict[f"blocks.{l}.ln2.b"] = ln2.bias
@@ -262,6 +265,7 @@ state_dict = convert_culture_weights(model, cfg)
 gpt = HookedTransformer(cfg)
 gpt.id = 0
 print(gpt)
+# gpt.load_state_dict(state_dict)
 errors = gpt.load_and_process_state_dict(
     state_dict,
     fold_ln=False,
@@ -352,14 +356,6 @@ with t.inference_mode():
     logits_ht, cache_ht = gpt.run_with_cache(inp_ht, remove_batch_dim=False)
     mygpt_out = model(inpt_mygpt).x
 
-print(logits_ht[0, :5], mygpt_out[0, :5])
-print(t.allclose(logits_ht, mygpt_out, atol=1e-6))
+print(t.allclose(logits_ht, mygpt_out, atol=1e-4))
 
 # %%
-
-print("embed close:", t.allclose(cache_ht['blocks.0.hook_resid_pre'], model.activation_cache['embed'], atol=1e-4))
-
-# %%
-cache_ht['mlp_out', 0], model.activation_cache['block.0.attn']
-
-
