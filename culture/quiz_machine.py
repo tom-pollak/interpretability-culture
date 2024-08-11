@@ -30,6 +30,7 @@ def one_batch_masked_inplace_autoregression(
     ar_mask,
     seq_logproba,
     deterministic_synthesis=False,
+    use_brack_seq=True,
 ):
     if input.size(0) == 0:
         return
@@ -37,11 +38,17 @@ def one_batch_masked_inplace_autoregression(
     to_generate = (ar_mask.sum(0) > 0).nonzero()
 
     if to_generate.min() > 0:
-        model(
-            BracketedSequence(input, 0, to_generate.min())
-        )  # Needed to initialize the model's cache
+        inp = BracketedSequence(input, 0, to_generate.min())
+        if use_brack_seq:
+            model(inp)  # Needed to initialize the model's cache
+        else:
+            model(inp.slice())
     for s in range(to_generate.min(), to_generate.max() + 1):
-        output = model(BracketedSequence(input, s, 1)).x
+        inp = BracketedSequence(input, s, 1)
+        if use_brack_seq:
+            output = model(inp).x
+        else:
+            output = model(inp.x)
 
         logits = output[:, s]
 
@@ -69,6 +76,7 @@ class QuizMachine:
         result_dir,
         prompt_noise,
         logger,
+        use_brack_seq=True,
         device=torch.device("cpu"),
     ):
         super().__init__()
@@ -77,6 +85,7 @@ class QuizMachine:
         self.batch_size = batch_size
         self.device = device
         self.logger = logger
+        self.use_brack_seq = use_brack_seq
         self.prompt_len = None
         self.answer_len = None
         self.prompt_noise = prompt_noise
@@ -136,6 +145,7 @@ class QuizMachine:
                     ar_mask=ar_mask,
                     seq_logproba=seq_logproba,
                     deterministic_synthesis=False,
+                    use_brack_seq=self.use_brack_seq
                 )
 
             model.train(t)
@@ -320,7 +330,7 @@ class QuizMachine:
         torch.save((self.train_c_quizzes, self.test_c_quizzes), filename)
 
     def load_c_quizzes(self, filename):
-        self.train_c_quizzes, self.test_c_quizzes = torch.load(filename)
+        self.train_c_quizzes, self.test_c_quizzes = torch.load(filename, weights_only=False)
 
     ######################################################################
 
@@ -360,7 +370,10 @@ class QuizMachine:
                 ):
                     input = input.to(device)
                     ar_mask = self.make_ar_mask(input, struct=struct, mask=mask)
-                    output = model(mygpt.BracketedSequence(input)).x
+                    if self.use_brack_seq:
+                        output = model(mygpt.BracketedSequence(input)).x
+                    else:
+                        output = model(input)
                     l[:, model.id] = (
                         -F.cross_entropy(
                             output.transpose(1, 2), input, reduction="none"
