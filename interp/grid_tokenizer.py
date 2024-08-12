@@ -13,15 +13,15 @@ class GridTokenizerConfig:
     pad_token: str = "0"
     bos_token: str = "0"
     eos_token: str = "0"
-    model_max_length: int = 16  # 14 normal, 0, UNK
+    model_max_length: int = 404  # 14 normal, 0, UNK
 
 
 class GridTokenizerFast(PreTrainedTokenizerFast):
     def __init__(self, tokenizer=None, **kwargs):
         if tokenizer is None:
             # Create the base vocabulary (1-E for 14 tokens, plus 0 as special and [UNK])
-            vocab = {f"{i:X}": i for i in range(1, 15)}  # 1-F
-            vocab.update({"0": 0, "[UNK]": 15})
+            vocab = {f"{i:X}": i for i in range(15)}  # 1-F
+            vocab.update({"[UNK]": 15})
             model = WordLevel(vocab, unk_token="[UNK]")
             tokenizer = Tokenizer(model)
             tokenizer.pre_tokenizer = Whitespace()  # type: ignore
@@ -44,6 +44,9 @@ class GridTokenizerFast(PreTrainedTokenizerFast):
             token_ids = [token_ids]
         if isinstance(token_ids, list):
             token_ids = np.array(token_ids)
+
+        if token_ids.ndim == 0:
+            token_ids = token_ids[None]
 
         if len(token_ids) != 404:
             return super().decode(
