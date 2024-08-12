@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     # Test the tokenizer
 
-    base_tokens = [f"{(i%14)+1:X}" for i in range(400)]
+    base_tokens = [f"{(i%15):X}" for i in range(400)]
     for i in range(0, 400, 101):
         base_tokens.insert(i, "0")
     test_input = " ".join(base_tokens)
