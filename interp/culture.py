@@ -319,7 +319,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Convert culture weights to hooked transformer"
     )
-    parser.add_argument("num_test_samples", type=int, default=200, help="(1-2000)")
+    parser.add_argument(
+        "model_ids",
+        nargs="+",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=[0],
+        help="model id's to test",
+    )
+    parser.add_argument("--num_test_samples", type=int, default=200, help="(1-2000)")
     args = parser.parse_args()
     if args.num_test_samples < 1 or args.num_test_samples > 2000:
         parser.error("num_test_samples must be between 1 and 2000")
