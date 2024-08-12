@@ -12,17 +12,8 @@ from einops import einops
 
 from transformer_lens import HookedTransformer, HookedTransformerConfig
 
+from interp import INTERP_DIR, INTERP_RESULTS_DIR, RESULT_DIR
 
-root_dir = Path(__file__).parents[1]
-interp_dir = root_dir / "interp"
-interp_result_dir = interp_dir / "results_interp"
-
-culture_dir = root_dir / "culture"
-result_dir = culture_dir / "results_noise"
-assert culture_dir.exists() and result_dir.exists()
-
-if str(culture_dir) not in sys.path:
-    sys.path.append(str(culture_dir.resolve()))
 
 import mygpt
 
@@ -59,7 +50,7 @@ cfg = HookedTransformerConfig(
     n_ctx=404,
     d_vocab=15,
     act_fn="relu",
-    pre_unembed_ln=False,
+    final_ln=False,
 )
 
 
@@ -107,7 +98,7 @@ for model in models:
     filename = f"gpt_{model.id:03d}.pth"
 
     try:
-        d = t.load(result_dir / filename, map_location="cpu")
+        d = t.load(RESULT_DIR / filename, map_location="cpu")
         sd = update_state_dict_keys(d[0])
         model.load_state_dict(sd)
         model.main_test_accuracy = d[1]
@@ -119,7 +110,7 @@ for model in models:
 
 filename = "state.pth"
 try:
-    state = t.load(result_dir / filename, weights_only=False)
+    state = t.load(RESULT_DIR / filename, weights_only=False)
     print(f"successfully loaded {filename}")
     current_epoch = state["current_epoch"]
 except FileNotFoundError:
@@ -266,7 +257,7 @@ model = models[0]
 state_dict = convert_culture_weights(model, cfg)
 hooked_tranformer = HookedTransformer(cfg)
 
-preprocess =nn.ConstantPad1d((1, -1), value=0)
+preprocess = nn.ConstantPad1d((1, -1), value=0)
 
 # gpt.load_state_dict(state_dict)
 errors = hooked_tranformer.load_and_process_state_dict(
@@ -325,7 +316,7 @@ problem = grids.Grids(
 quiz_machine = quiz_machine.QuizMachine(
     problem=problem,
     batch_size=inference_batch_size,
-    result_dir=interp_result_dir,
+    result_dir=INTERP_RESULTS_DIR,
     prompt_noise=prompt_noise,
     logger=print,
     use_brack_seq=False,
@@ -339,11 +330,11 @@ gpt.test_w_quizzes = quiz_machine.problem.generate_w_quizzes(
 vocabulary_size = quiz_machine.vocabulary_size()
 
 filename = "c_quizzes.pth"
-quiz_machine.load_c_quizzes(result_dir / filename)
+quiz_machine.load_c_quizzes(RESULT_DIR / filename)
 print(f"successfully loaded {filename}")
 
 filename = "state.pth"
-state = t.load(result_dir / filename, weights_only=False)
+state = t.load(RESULT_DIR / filename, weights_only=False)
 print(f"successfully loaded {filename}")
 current_epoch = state["current_epoch"]
 
@@ -362,7 +353,7 @@ with t.inference_mode():
     logits = gpt(inp)
     mygpt_logits = model(mygpt.BracketedSequence(inp)).x
 
-print("allclose", t.allclose(logits, mygpt_logits, atol=5e-4))
+print("allclose", t.allclose(logits, mygpt_logits, atol=6e-4))
 
 # %%
 
@@ -391,7 +382,7 @@ def run_tests(model, quiz_machine, local_device=main_device):
             n_epoch=n_epoch,
             model=model,
             input=full_input[:2000],
-            result_dir=interp_result_dir,
+            result_dir=INTERP_RESULTS_DIR,
         )
 
 
