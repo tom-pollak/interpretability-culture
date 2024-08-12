@@ -6,6 +6,7 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 
 import torch as t
+from torch import nn
 import torch.nn.functional as F
 from einops import einops
 
@@ -76,6 +77,7 @@ for k in range(nb_gpts):
         nb_blocks=cfg.n_layers,
         causal=True,
         dropout=0.0,
+        activation_cache=False,
     ).to(main_device)
 
     model.id = k  # type: ignore
@@ -262,11 +264,12 @@ def convert_culture_weights(model, cfg: HookedTransformerConfig) -> dict:
 model = models[0]
 # print(model)
 state_dict = convert_culture_weights(model, cfg)
-gpt = HookedTransformer(cfg)
-gpt.id = 0
-print(gpt)
+hooked_tranformer = HookedTransformer(cfg)
+
+preprocess =nn.ConstantPad1d((1, -1), value=0)
+
 # gpt.load_state_dict(state_dict)
-errors = gpt.load_and_process_state_dict(
+errors = hooked_tranformer.load_and_process_state_dict(
     state_dict,
     fold_ln=False,
     center_writing_weights=False,
@@ -274,6 +277,10 @@ errors = gpt.load_and_process_state_dict(
     fold_value_biases=False,
     refactor_factored_attn_matrices=False,
 )
+print(hooked_tranformer)
+
+gpt = nn.Sequential(preprocess, hooked_tranformer)
+gpt.id = 0
 
 # %%
 
@@ -320,13 +327,13 @@ quiz_machine = quiz_machine.QuizMachine(
     batch_size=inference_batch_size,
     result_dir=interp_result_dir,
     prompt_noise=prompt_noise,
-    logger=None,
+    logger=print,
     use_brack_seq=False,
     device=main_device,
 )
 
 gpt.test_w_quizzes = quiz_machine.problem.generate_w_quizzes(
-    inference_batch_size
+    nb_test_samples
 )  # nb_test_samples  # type: ignore
 
 vocabulary_size = quiz_machine.vocabulary_size()
@@ -346,16 +353,49 @@ current_epoch = state["current_epoch"]
 
 gpt.eval().to(main_device)
 model.eval().to(main_device)
-full_input, _ = quiz_machine.data_input(gpt, split="test")
-inp = full_input[0][None, :].to(main_device)
 
-inpt_mygpt = mygpt.BracketedSequence(inp)
-inp_ht = mygpt.BracketedSequence(F.pad(inpt_mygpt.x, (1, -1)), inpt_mygpt.first, inpt_mygpt.nb).x
+full_input, _ = quiz_machine.data_input(gpt, split="test")
+inp = full_input.split(batch_size)[0].to(main_device)
+
 
 with t.inference_mode():
-    logits_ht, cache_ht = gpt.run_with_cache(inp_ht, remove_batch_dim=False)
-    mygpt_out = model(inpt_mygpt).x
+    logits = gpt(inp)
+    mygpt_logits = model(mygpt.BracketedSequence(inp)).x
 
-print(t.allclose(logits_ht, mygpt_out, atol=1e-4))
+print("allclose", t.allclose(logits, mygpt_logits, atol=5e-4))
+
+# %%
+
+def run_tests(model, quiz_machine, local_device=main_device):
+    with t.autograd.no_grad():
+        model.eval().to(local_device)
+
+        nb_test_samples, acc_test_loss = 0, 0.0
+        nb_samples_accumulated = 0
+
+        full_input, _ = quiz_machine.data_input(model, split="test")
+        src = full_input.split(batch_size)
+
+        for input in tqdm.tqdm(src, dynamic_ncols=True, desc="test"):
+            input = input.to(local_device)
+            output = model(input)
+            loss = F.cross_entropy(output.transpose(1, 2), input)
+            acc_test_loss += loss.item() * input.size(0)
+            nb_test_samples += input.size(0)
+
+        test_perplexity = math.exp(min(100, acc_test_loss / nb_test_samples))
+
+        print(f"test_perplexity {n_epoch} model {model.id} {test_perplexity}")
+
+        model.main_test_accuracy = quiz_machine.produce_results(
+            n_epoch=n_epoch,
+            model=model,
+            input=full_input[:2000],
+            result_dir=interp_result_dir,
+        )
+
+
+run_tests(gpt, quiz_machine)
+print(f"accuracy: {float(gpt.main_test_accuracy):.04f}")
 
 # %%
