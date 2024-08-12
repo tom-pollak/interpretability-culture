@@ -1,22 +1,32 @@
-from interp import GPT_SMALL
+import numpy as np
+from dataclasses import dataclass
 
+from transformers import PreTrainedTokenizerFast
 from tokenizers import Tokenizer
 from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
-from transformers import PreTrainedTokenizerFast
-import numpy as np
 
-# Create the base vocabulary (1-F for 15 tokens, plus 0 as special and [UNK])
-vocab = {f"{i:X}": i for i in range(1, 16)}  # 1-F
-vocab.update({"0": 0, "[UNK]": 16})
-model = WordLevel(vocab, unk_token="[UNK]")
-tokenizer = Tokenizer(model)
-tokenizer.pre_tokenizer = Whitespace() # type: ignore
+
+@dataclass
+class GridTokenizerConfig:
+    unk_token: str = "[UNK]"
+    pad_token: str = "0"
+    bos_token: str = "0"
+    eos_token: str = "0"
+    model_max_length: int = 16  # 14 normal, 0, UNK
 
 
 class GridTokenizerFast(PreTrainedTokenizerFast):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, tokenizer=None, **kwargs):
+        if tokenizer is None:
+            # Create the base vocabulary (1-E for 14 tokens, plus 0 as special and [UNK])
+            vocab = {f"{i:X}": i for i in range(1, 15)}  # 1-F
+            vocab.update({"0": 0, "[UNK]": 15})
+            model = WordLevel(vocab, unk_token="[UNK]")
+            tokenizer = Tokenizer(model)
+            tokenizer.pre_tokenizer = Whitespace()  # type: ignore
+
+        super().__init__(tokenizer_object=tokenizer, **kwargs)
 
     def _decode_single_token(self, token, skip_special_tokens=False, **kwargs):
         return super().decode(
@@ -64,29 +74,3 @@ class GridTokenizerFast(PreTrainedTokenizerFast):
             decoded += "\n"
 
         return decoded
-
-
-if __name__ == "__main__":
-    grid_tokenizer = GridTokenizerFast(
-        tokenizer_object=tokenizer,
-        unk_token="[UNK]",
-        pad_token="0",
-        bos_token="0",
-        eos_token="0",
-        model_max_length=GPT_SMALL.n_ctx,  # 4 * (1 + 10 * 10)
-    )
-
-    # Test the tokenizer
-
-    base_tokens = [f"{(i%14)+1:X}" for i in range(400)]
-    for i in range(0, 400, 101):
-        base_tokens.insert(i, '0')
-    test_input = " ".join(base_tokens)
-
-    encoded = grid_tokenizer.encode(test_input, add_special_tokens=False)
-    decoded = grid_tokenizer.decode(encoded)
-    print("Encoded (first 20 tokens):", encoded[:20])
-    print("\nDecoded:")
-    print(decoded)
-
-    # grid_tokenizer.push_to_hub()
