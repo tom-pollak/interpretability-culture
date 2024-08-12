@@ -47,6 +47,7 @@ GPT_SMALL = HookedTransformerConfig(
     d_vocab=15,
     act_fn="relu",
     final_ln=False,  # requires custom patch
+    tokenizer_name="tommyp111/culture-grid-tokenizer",
 )
 
 
