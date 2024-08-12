@@ -60,7 +60,8 @@ class ActivationCacheWrapper(nn.Module):
 
     def forward(self, x: BracketedSequence):
         x = self.f(x)
-        self.cache[self.name] = x.x.clone()
+        if self.cache is not None:
+            self.cache[self.name] = x.x.clone()
         return x
 
 
@@ -267,9 +268,13 @@ class MyGPT(nn.Module):
         autoencoder_dim=-1,
         dropout=0.0,
         len_max=1e5,
+        activation_cache=False,
     ):
         super().__init__()
-        self.activation_cache = {}
+        if activation_cache:
+            self.activation_cache = {}
+        else:
+            self.activation_cache = None
 
 
         assert dim_model % nb_heads == 0
@@ -350,7 +355,8 @@ class MyGPT(nn.Module):
                     m.weight.fill_(1.0)
 
     def forward(self, bs):
-        self.activation_cache.clear()  # Clear previous activations
+        if self.activation_cache is not None:
+            self.activation_cache.clear()  # Clear previous activations
         bs = BracketedSequence(F.pad(bs.x, (1, -1)), bs.first, bs.nb)
         bs = self.embedding(bs)
         bs = self.trunk(bs)
