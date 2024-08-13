@@ -42,12 +42,12 @@ def repr_grid(grids) -> str:
 
     # ANSI color codes
     colors = [
-        "\033[0m",  # 0: White
+        "\033[0m",   # 0: White
         "\033[36m",  # 1: Cyan
         "\033[31m",  # 2: Red
-        "\033[38;5;172m",  # 3: Light Yellow
+        "\033[38;5;219m", # 3: Light Pink
         "\033[33m",  # 4: Yellow
-        "\033[92m",  # 5: Light Green
+        "\033[38;5;87m",  # 5: Light Turquoise
         "\033[32m",  # 6: Green
         "\033[95m",  # 7: Purple
         "\033[34m",  # 8: Blue
