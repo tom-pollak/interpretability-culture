@@ -52,7 +52,7 @@ def sinusoidal_positional_encoding(
 # ----- loading models -----
 
 
-def load_culture() -> list[mygpt.MyGPT]:
+def load_culture(model_ks=(0, 1, 2, 3)) -> list[mygpt.MyGPT]:
     def _update_state_dict_keys(sd):
         "Since I added ActivationCache to MyGPT, I need to update state_dict keys to load properly"
         new_sd = {}
@@ -66,9 +66,10 @@ def load_culture() -> list[mygpt.MyGPT]:
             new_sd[new_key] = v
         return new_sd
 
-    nb_gpts = 4
     models = []
-    for k in range(nb_gpts):
+    if isinstance(model_ks, int):
+        model_ks = (model_ks,)
+    for k in model_ks:
         model = mygpt.MyGPT(
             vocabulary_size=GPT_SMALL.d_vocab,
             dim_model=GPT_SMALL.d_model,
@@ -90,14 +91,16 @@ def load_culture() -> list[mygpt.MyGPT]:
 
         model.id = k  # type: ignore
         model.main_test_accuracy = d[1]
-
-        print(f"loaded model {k}")
         models.append(model)
     return models
 
 
-def load_hooked() -> list[HookedTransformer]:
-    models = load_culture()
+def _unwrap_single_element(l):
+    return l[0] if len(l) == 1 else l
+
+
+def load_hooked(model_ks=(0, 1, 2, 3)) -> list[HookedTransformer] | HookedTransformer:
+    models = load_culture(model_ks)
 
     # convert weights
     state_dicts = [convert_culture_weights(model, GPT_SMALL) for model in models]
@@ -116,17 +119,21 @@ def load_hooked() -> list[HookedTransformer]:
         )
         ht.id = k  # type: ignore
         hooked_tranformers.append(ht)
-    return hooked_tranformers
+    return _unwrap_single_element(hooked_tranformers)
 
 
-def add_preproc(models: list[HookedTransformer]) -> list[nn.Sequential]:
+def add_preproc(
+    models: list[HookedTransformer] | HookedTransformer,
+) -> list[nn.Sequential] | nn.Sequential:
     "for run_tests"
+    if not isinstance(models, list):
+        models = [models]
     preproc_models = []
     for model in models:
         preproc_model = nn.Sequential(TOK_PREPROCESS, model)
         preproc_model.id = model.id
         preproc_models.append(preproc_model)
-    return preproc_models
+    return _unwrap_single_element(preproc_models)
 
 
 # ----- loading datasets -----
@@ -354,16 +361,13 @@ if __name__ == "__main__":
     cta = " ".join([f"{float(m.main_test_accuracy):.04f}" for m in culture_models])
     print(f"current_test_accuracies {cta}")
 
-    # load hooked
-    hooked_transformers = add_preproc(load_hooked())
-    print(hooked_transformers[0][1])
-
     # dataset load
     qm = load_quizzes()
 
     # eval logits same on one batch
     cult_m0 = culture_models[0].eval().to(device)
-    ht_m0 = hooked_transformers[0].eval().to(device)
+    ht_m0 = add_preproc(load_hooked(0)).eval().to(device)  # type: ignore
+    print(ht_m0[1])
 
     set_seed()
     gen_test_w_quiz_(ht_m0, qm, n=QM_CONFIG.batch_size)
@@ -378,7 +382,9 @@ if __name__ == "__main__":
 
     # eval accuracy
     print(f"evaluating accuracy ({args.num_test_samples} samples)")
-
+    hooked_transformers = add_preproc(load_hooked(args.model_ids))
+    if not isinstance(hooked_transformers, list):
+        hooked_transformers = [hooked_transformers]
     for model in hooked_transformers:
         print(f"--- model {model.id} ---")
         set_seed()
