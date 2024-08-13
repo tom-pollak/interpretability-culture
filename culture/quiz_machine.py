@@ -249,6 +249,7 @@ class QuizMachine:
             )
             predicted_parts[i] = torch.tensor(mask, device=self.device)[None, :]
             solution_is_deterministic = predicted_parts[i].sum(dim=-1) == 1
+            # -1 incorrect, 1 correct, 0 not considered
             correct[i] = (2 * correct[i] - 1) * (solution_is_deterministic).long()
 
         assert nb == input.size(0)
