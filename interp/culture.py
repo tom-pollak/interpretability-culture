@@ -164,6 +164,7 @@ def load_quizzes(cfg: Optional[QuizMachineConfig] = None, logger=print, device=N
         device=device,
     )
     qm.load_c_quizzes(RESULT_DIR / "c_quizzes.pth")
+    qm.understood_structures = qm.understood_structures[:4]  # remove generation struct
     return qm
 
 
@@ -363,6 +364,19 @@ if __name__ == "__main__":
 
     # dataset load
     qm = load_quizzes()
+
+    # triple check ("f_B", "f_A", "A", "B") is not in dataset
+    dataset = qm.problem.generate_w_quizzes(100)
+    assert dataset is not None
+    for quiz in dataset:
+        ps = qm.problem.get_structure(quiz[None])
+        assert ps != ("f_B", "f_A", "A", "B")
+        for struct, mask, _ in qm.understood_structures:
+            if struct == ps:
+                assert sum(mask) == 1
+                break
+        else:
+            raise ValueError("not found")
 
     # eval logits same on one batch
     cult_m0 = culture_models[0].eval().to(device)
