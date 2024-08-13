@@ -14,7 +14,7 @@ __all__ = ["repr_grid", "create_tokenizer"]
 
 def create_tokenizer() -> PreTrainedTokenizerFast:
     vocab = {f"{i:X}": i for i in range(11)}  # 0-A
-    vocab.update({"X": 11, "FX": 12, "Y": 13, "FY": 14, "[UNK]": 15})
+    vocab.update({"X": 11, "f_X": 12, "Y": 13, "f_Y": 14, "[UNK]": 15})
     model = WordLevel(vocab, unk_token="[UNK]")
     tokenizer = Tokenizer(model)
     tokenizer.pre_tokenizer = Whitespace()  # type: ignore
@@ -61,8 +61,10 @@ def repr_grid(grids) -> str:
 
     for i in range(0, 404, 101):
         if i > 0: repr_string += "\n\n"
-        try: repr_string += f"{grid_labels[grids[i]]}:\n"
-        except IndexError: return repr_string
+        try:
+            repr_string += f"{grid_labels[grids[i]]}:\n"
+        except IndexError:
+            return repr_string
 
         for j in range(1, 101):
             if j % 10 == 1 and j > 1: repr_string += "\n"
