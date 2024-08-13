@@ -190,7 +190,7 @@ def run_tests(model, quiz_machine: QuizMachine, device=None):
 
     for input in tqdm.tqdm(src, dynamic_ncols=True, desc="test"):
         input = input.to(device)
-        output = model(input)
+        output = model(TOK_PREPROCESS(input))
         loss = F.cross_entropy(output.transpose(1, 2), input)
         acc_test_loss += loss.item() * input.size(0)
         nb_test_samples += input.size(0)
@@ -366,8 +366,8 @@ if __name__ == "__main__":
 
     # eval logits same on one batch
     cult_m0 = culture_models[0].eval().to(device)
-    ht_m0 = add_preproc(load_hooked(0)).eval().to(device)  # type: ignore
-    print(ht_m0[1])
+    ht_m0 = load_hooked(0).eval().to(device)  # type: ignore
+    print(ht_m0)
 
     set_seed()
     gen_test_w_quiz_(ht_m0, qm, n=QM_CONFIG.batch_size)
@@ -382,7 +382,7 @@ if __name__ == "__main__":
 
     # eval accuracy
     print(f"evaluating accuracy ({args.num_test_samples} samples)")
-    hooked_transformers = add_preproc(load_hooked(args.model_ids))
+    hooked_transformers = load_hooked(args.model_ids)
     if not isinstance(hooked_transformers, list):
         hooked_transformers = [hooked_transformers]
     for model in hooked_transformers:

@@ -17,6 +17,9 @@ from mygpt import BracketedSequence
 
 import threading
 
+from torch import nn
+TOK_PREPROCESS = nn.ConstantPad1d((1, -1), value=0)  # pads with a 0 start token
+
 ######################################################################
 
 # ar_mask is a tensor with 0s and 1s, of same shape as input, with
@@ -42,13 +45,13 @@ def one_batch_masked_inplace_autoregression(
         if use_brack_seq:
             model(inp)  # Needed to initialize the model's cache
         else:
-            model(inp.slice())
+            model(TOK_PREPROCESS(inp.slice()))
     for s in range(to_generate.min(), to_generate.max() + 1):
         inp = BracketedSequence(input, s, 1)
         if use_brack_seq:
             output = model(inp).x
         else:
-            output = model(inp.x)
+            output = model(TOK_PREPROCESS(inp.x))
 
         logits = output[:, s]
 
