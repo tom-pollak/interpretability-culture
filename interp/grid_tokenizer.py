@@ -19,17 +19,17 @@ def create_tokenizer() -> PreTrainedTokenizerFast:
     tokenizer = Tokenizer(model)
     tokenizer.pre_tokenizer = Whitespace()  # type: ignore
 
-    tokenizer.post_processor = TemplateProcessing(  # type: ignore
-        single="0 $A",  # 0 as BOS
-        special_tokens=[("0", 0)],  # '0' is both the token and its ID
-    )
+    # tokenizer.post_processor = TemplateProcessing(  # type: ignore
+    #     single="0 $A",  # 0 as BOS
+    #     special_tokens=[("0", 0)],  # '0' is both the token and its ID
+    # )
+
     return PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
         unk_token="[UNK]",
         pad_token="0",
         bos_token="0",
-        eos_token="0",
-        model_max_length=GPT_SMALL.n_ctx,
+        model_max_length=GPT_SMALL.n_ctx + 1,
     )
 
 
