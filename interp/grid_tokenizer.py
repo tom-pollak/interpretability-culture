@@ -13,16 +13,11 @@ __all__ = ["repr_grid", "create_tokenizer"]
 
 
 def create_tokenizer() -> PreTrainedTokenizerFast:
-    vocab = {f"{i:X}": i for i in range(11)}  # 0-A
-    vocab.update({"X": 11, "f_X": 12, "Y": 13, "f_Y": 14, "[UNK]": 15})
+    vocab = {str(i): i for i in range(11)}  # 0-A
+    vocab.update({"A": 11, "f_A": 12, "B": 13, "f_B": 14, "[UNK]": 15})
     model = WordLevel(vocab, unk_token="[UNK]")
     tokenizer = Tokenizer(model)
     tokenizer.pre_tokenizer = Whitespace()  # type: ignore
-
-    # tokenizer.post_processor = TemplateProcessing(  # type: ignore
-    #     single="0 $A",  # 0 as BOS
-    #     special_tokens=[("0", 0)],  # '0' is both the token and its ID
-    # )
 
     return PreTrainedTokenizerFast(
         tokenizer_object=tokenizer,
