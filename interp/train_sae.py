@@ -1,6 +1,7 @@
 # %%
 from sae_lens import LanguageModelSAERunnerConfig, SAETrainingRunner
 from transformer_lens import HookedTransformer
+
 from interp import GPT_SMALL
 from interp.culture import load_hooked
 
