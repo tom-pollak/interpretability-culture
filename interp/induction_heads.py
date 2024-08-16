@@ -2,6 +2,8 @@
 # fmt: off
 import torch as t
 from transformer_lens import HookedTransformer, ActivationCache
+import circuitsvis as cv
+from IPython.display import display
 
 from interp.all import *
 
@@ -75,17 +77,18 @@ Let's see if we can first find the previous token head
 """
 
 quiz = quizzes[None, 0]
+str_tokens = model.to_str_tokens(quiz)
 
 logits, cache = model.run_with_cache(quiz, remove_batch_dim=True)
 
-def prev_attn_detector(cache, thres):
+def prev_attn_detector(cache, thres, n_lookback):
     out = []
     for layer in range(GPT_SMALL.n_layers):
         attn_pattern = cache["pattern", layer].cpu()
         diag = attn_pattern[
             :,
             t.arange(GPT_SMALL.n_ctx),
-            t.clamp(t.arange(GPT_SMALL.n_ctx) - 1, 0)
+            t.clamp(t.arange(GPT_SMALL.n_ctx) - n_lookback, 0)
         ]
         mean_diag = diag.mean(dim=1)
         mask = mean_diag > thres
@@ -93,7 +96,8 @@ def prev_attn_detector(cache, thres):
         out.extend([f"{layer}.{head.item()}: {value.item():.4f}"
                     for head, value in zip(heads, values)])
     return out
-print("Heads attending to previous token =", ", ".join(prev_attn_detector(cache, thres=0.2)))
+
+print("Heads attending to previous token =", ", ".join(prev_attn_detector(cache, thres=0.2, n_lookback=1)))
 
 # %%
 
@@ -105,6 +109,43 @@ In fact there's a much stronger head in layer 7
 
 """
 
+
+attn_pattern = cache["pattern", 0][7]
+
+display(
+    cv.attention.attention_pattern(
+        tokens=str_tokens,
+        attention=attn_pattern,
+        # attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+# %%
+"""
+Let's look back a whole grid then:
+"""
+
+print("Heads attending to previous grid =", ", ".join(prev_attn_detector(cache, thres=0.1, n_lookback=100)))
+
+# %%
+
+"""
+There's an even stronger head, 0!
+
+And we can see that it strongly relates the to the current token from the previous grid, and if in the first grid it attends to the previous token
+"""
+
+attn_pattern = cache["pattern", 0][0]
+
+display(
+    cv.attention.attention_pattern(
+        tokens=str_tokens,
+        attention=attn_pattern,
+        # attention_head_names=[f"L0H{i}" for i in range(12)],
+    )
+)
+
+
 # %%
 
 """
@@ -115,8 +156,6 @@ The two ways (I know of) of creating an induction head are:
 2. Using the previous token head through q-composition -- induction head: the model uses the current token as the query, then the OV circuit rotates the positional embedding (in ROPE) to the next token
 
 We're using sinusoidal positional encoding so might be harder (but not impossible) to rotate the positional embedding
-
-
 
 """
 
