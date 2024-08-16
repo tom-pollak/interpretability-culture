@@ -23,9 +23,9 @@ import mygpt
 import grids
 from quiz_machine import QuizMachine
 
+from interp.grid_tokenizer import TOK_PREPROCESS, prep_quiz, sinusoidal_positional_encoding, repr_grid
+
 __all__ = [
-    "TOK_PREPROCESS",
-    "sinusoidal_positional_encoding",
     "load_culture",
     "load_hooked",
     "add_preproc",
@@ -35,18 +35,6 @@ __all__ = [
     "convert_culture_weights",
 ]
 
-
-TOK_PREPROCESS = nn.ConstantPad1d((1, -1), value=0)  # pads with a 0 start token
-
-
-def sinusoidal_positional_encoding(
-    seq_length: int, emb_dim: int, max_length: float = 1e5
-):  # (seq_length, emb_dim)
-    T = t.arange(seq_length)[:, None]
-    J = t.arange(emb_dim)[None, :]
-    K = J % 2
-    pe = t.sin(T / (max_length ** ((J - K) / emb_dim)) + t.pi / 2 * K)
-    return pe
 
 
 # ----- loading models -----
@@ -388,11 +376,29 @@ if __name__ == "__main__":
     inp = qm.data_input(ht_m0, split="test")[0].to(device)
     with t.inference_mode():
         cult_logits = cult_m0(mygpt.BracketedSequence(inp)).x
-        ht_logits = ht_m0(inp)
+        ht_logits = ht_m0(TOK_PREPROCESS(inp))
     print(
         "MyGPT & HookedTransformer allclose:",
         t.allclose(cult_logits, ht_logits, atol=5e-4),
     )
+
+    # run generate
+    NUM_GEN = 3
+    quizzes = qm.data_input(ht_m0, split="test")[0][:NUM_GEN].to(device)
+    preds = ht_m0.generate(prep_quiz(quizzes), max_new_tokens=100, use_past_kv_cache=False)
+    preds = preds[:, 1:] # strip 0 token
+
+    for quiz, pred in zip(quizzes, preds):
+        correct = t.all(quiz == pred).item()
+        print("correct:", correct)
+        print(repr_grid(quiz[:303]))
+        print("#########")
+        print("Ground Truth")
+        print(repr_grid(quiz[303:]))
+        if not correct:
+            print("Predicted")
+            print(repr_grid(pred[303:]))
+        print("\n####################################################################\n")
 
     # eval accuracy
     print(f"evaluating accuracy ({args.num_test_samples} samples)")

@@ -1,4 +1,5 @@
 import torch as t
+import torch.nn as nn
 import numpy as np
 
 from interp import GPT_SMALL
@@ -9,7 +10,37 @@ from tokenizers.models import WordLevel
 from tokenizers.pre_tokenizers import Whitespace
 from tokenizers.processors import TemplateProcessing
 
-__all__ = ["repr_grid", "create_tokenizer"]
+__all__ = [
+    "TOK_PREPROCESS",
+    "prep_quiz",
+    "sinusoidal_positional_encoding",
+    "repr_grid",
+    "create_tokenizer"
+]
+
+
+TOK_PREPROCESS = nn.ConstantPad1d((1, -1), value=0)  # pads with a 0 start token
+
+
+def prep_quiz(quizzes, prefix_0=True, slice_at=304):
+    if slice_at is not None:
+        quizzes = quizzes[:, :slice_at]
+    if prefix_0:
+        quizzes = t.cat((
+            t.zeros(quizzes.shape[0], 1, device=quizzes.device, dtype=quizzes.dtype),
+            quizzes
+        ), dim=1)
+    return quizzes
+
+
+def sinusoidal_positional_encoding(
+    seq_length: int, emb_dim: int, max_length: float = 1e5
+):  # (seq_length, emb_dim)
+    T = t.arange(seq_length)[:, None]
+    J = t.arange(emb_dim)[None, :]
+    K = J % 2
+    pe = t.sin(T / (max_length ** ((J - K) / emb_dim)) + t.pi / 2 * K)
+    return pe
 
 
 def create_tokenizer() -> PreTrainedTokenizerFast:
