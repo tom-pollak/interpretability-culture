@@ -19,13 +19,14 @@ __all__ = [
 ]
 
 
-TOK_PREPROCESS = nn.ConstantPad1d((1, -1), value=0)  # pads with a 0 start token
+TOK_PREPROCESS = nn.ConstantPad1d((1, -1), value=0)  # pads with a 0 start token, shaves off last token
 
 
 def prep_quiz(quizzes, prefix_0=True, slice_at=304):
     if slice_at is not None:
         quizzes = quizzes[:, :slice_at]
     if prefix_0:
+        # different from TOK_PREPROCESS, this doesn't shave off the last token
         quizzes = t.cat((
             t.zeros(quizzes.shape[0], 1, device=quizzes.device, dtype=quizzes.dtype),
             quizzes
