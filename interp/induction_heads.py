@@ -1,6 +1,7 @@
 # %%
+# fmt: off
 import torch as t
-from transformer_lens import HookedTransformer
+from transformer_lens import HookedTransformer, ActivationCache
 
 from interp.all import *
 
@@ -70,13 +71,57 @@ Given 11, 12, 13 before, and 14 as the previous token, the model will consistent
 
 This could indicate that the model uses the attention layer as a previous token circuit? And disabling the layer the model loses the ability to attend to the previous token?
 
+Let's see if we can first find the previous token head
+"""
+
+quiz = quizzes[None, 0]
+
+logits, cache = model.run_with_cache(quiz, remove_batch_dim=True)
+
+def prev_attn_detector(cache, thres):
+    out = []
+    for layer in range(GPT_SMALL.n_layers):
+        attn_pattern = cache["pattern", layer].cpu()
+        diag = attn_pattern[
+            :,
+            t.arange(GPT_SMALL.n_ctx),
+            t.clamp(t.arange(GPT_SMALL.n_ctx) - 1, 0)
+        ]
+        mean_diag = diag.mean(dim=1)
+        mask = mean_diag > thres
+        heads, values = t.nonzero(mask, as_tuple=True)[0], mean_diag[mask]
+        out.extend([f"{layer}.{head.item()}: {value.item():.4f}"
+                    for head, value in zip(heads, values)])
+    return out
+print("Heads attending to previous token =", ", ".join(prev_attn_detector(cache, thres=0.2)))
+
+# %%
+
+"""
+
+Hm! there's only one head that attends to the previous token in layer 0, and the value is quite low.
+
+In fact there's a much stronger head in layer 7
+
+"""
+
+# %%
+
+"""
+
 The two ways (I know of) of creating an induction head are:
 
 1. Using the previous token head through k-composition -- induction head: uses the current token as query, and attends highly to a matching previous token
 2. Using the previous token head through q-composition -- induction head: the model uses the current token as the query, then the OV circuit rotates the positional embedding (in ROPE) to the next token
 
 We're using sinusoidal positional encoding so might be harder (but not impossible) to rotate the positional embedding
+
+
+
 """
+
+
+# %%
 
 """
 
