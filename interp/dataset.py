@@ -1,37 +1,94 @@
+# %%
 from interp.culture import *
 
 import torch as t
-from datasets import Dataset
-
-
-class DummyModel:
-    pass
+import numpy as np
+from datasets import Dataset, Features, ClassLabel, Sequence, Value
+from tqdm import tqdm
 
 
 DATASET_NAME = "tommyp111/culture-puzzles-1M"
 NELEMS = 1_000_000
+SEED = 42
 
-if __name__ == "__main__":
-    print(f"Creating {NELEMS} quizzes...")
+
+def load_dataset() -> Dataset:
     qm = load_quizzes()
 
-    _dummy = DummyModel()
-    gen_test_w_quiz_(_dummy, qm, n=NELEMS)
-    tokens, from_w = qm.data_input(_dummy, split="test")
+    quizzes = qm.problem.all_tasks
+    task_names = [t.__name__ for t in quizzes]
+    n_per_task = NELEMS // len(quizzes)
+    print("Available Tasks:\n- " + "\n- ".join(task_names) + "\n\n---------\n")
 
-    tokens = t.cat(
-        (t.zeros(tokens.shape[0], 1, device=tokens.device, dtype=tokens.dtype), tokens),
+    quiz_dict = {"culture": t.cat(qm.test_c_quizzes, dim=0)}
+    for task_name, task in tqdm(zip(task_names, quizzes)):
+        quiz_dict[task_name.removeprefix("task_")] = qm.problem.generate_w_quizzes_(n_per_task, tasks=[task])  # type: ignore
+
+    features = Features(
+        {
+            "input_ids": Sequence(Value("int32"), length=405),
+            "label": ClassLabel(names=sorted(set(list(quiz_dict.keys())))),
+        }
+    )
+
+    # concatenate
+    quizzes = t.cat(list(quiz_dict.values()), dim=0)
+
+    # randomize configurations
+    qm.randomize_configuations_inplace(
+        quizzes, structs=[s for s, _, _ in qm.understood_structures]
+    )
+
+    # add noise
+    if qm.prompt_noise > 0.0:
+        for struct, _, noise_mask in qm.understood_structures:
+            i = qm.problem.indices_select(quizzes=quizzes, struct=struct)
+            if i.any():
+                quizzes[i] = qm.problem.inject_noise(
+                    quizzes[i], qm.prompt_noise, struct=struct, mask=noise_mask
+                )
+
+    # prepend a 0
+    quizzes = t.cat(
+        (
+            t.zeros(quizzes.shape[0], 1, device=quizzes.device, dtype=quizzes.dtype),
+            quizzes,
+        ),
         dim=1,
     )
 
-    print("tokens shape:", tokens.shape)
-    print(f"% from culture: {(1 - from_w.float().mean().item())*100:.2f}")
+    # create labels
+    quiz_labels = np.array(
+        [
+            features["label"].str2int(task_name)
+            for task_name, tasks in quiz_dict.items()
+            for _ in range(tasks.shape[0])
+        ]
+    )
 
-    data_dict = {"input_ids": tokens, "from_w": from_w}
+    dataset = Dataset.from_dict(
+        {"input_ids": quizzes.cpu().numpy(), "label": quiz_labels}, features=features
+    )
+    dataset.set_format(type="torch", columns=["input_ids", "label"])
+    dataset = dataset.shuffle(SEED)
+    return dataset
 
-    dataset = Dataset.from_dict(data_dict)
-    dataset.set_format(type="torch", columns=["input_ids", "from_w"])
 
-    print("Pushing to hub...", end="")
-    dataset.push_to_hub(DATASET_NAME)
+# %%
+
+
+if __name__ == "__main__":
+    print(f"Creating {NELEMS} quizzes...", end="")
+    dataset = load_dataset()
     print("done.")
+
+    print("Dataset:")
+    print(dataset)
+    print("Features:")
+    print(dataset.features)
+    print("Head:")
+    print(dataset[:5])
+
+    # print("Pushing to hub...", end="")
+    # dataset.push_to_hub(DATASET_NAME)
+    # print("done.")
