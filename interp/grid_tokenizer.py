@@ -61,43 +61,47 @@ def create_tokenizer() -> PreTrainedTokenizerFast:
 
 
 def repr_grid(grids) -> str:
+    # ANSI color codes
+    colors = [
+        "0m",   # 0: White
+        "36m",  # 1: Cyan
+        "31m",  # 2: Red
+        "38;5;219m", # 3: Light Pink
+        "33m",  # 4: Yellow
+        "38;5;87m",  # 5: Light Turquoise
+        "32m",  # 6: Green
+        "95m",  # 7: Purple
+        "34m",  # 8: Blue
+        "38;5;208m",  # 9: Orange
+        "35m",  # 10: Magenta
+    ]
+    block = "███"
+    grid_labels = {11: "A", 12: "f(A)", 13: "B", 14: "f(B)"}
+
+    def _fmt_block(value: int) -> str:
+        if value in grid_labels:
+            return f"{grid_labels[value]}\n"
+        return f"\033[{colors[value]}{block}\033[0m"
+
     if isinstance(grids, t.Tensor): grids = grids.cpu().numpy()
     elif not isinstance(grids, np.ndarray): grids = np.array(grids)
     if grids.ndim == 0: grids = grids[None]
-
     if grids[0] == 0: grids = grids[1:] # pop first 0 pad if exists
 
-    # ANSI color codes
-    colors = [
-        "\033[0m",   # 0: White
-        "\033[36m",  # 1: Cyan
-        "\033[31m",  # 2: Red
-        "\033[38;5;219m", # 3: Light Pink
-        "\033[33m",  # 4: Yellow
-        "\033[38;5;87m",  # 5: Light Turquoise
-        "\033[32m",  # 6: Green
-        "\033[95m",  # 7: Purple
-        "\033[34m",  # 8: Blue
-        "\033[38;5;208m",  # 9: Orange
-        "\033[35m",  # 10: Magenta
-    ]
-
-    block = "███"
-    grid_labels = {11: "A", 12: "f(A)", 13: "B", 14: "f(B)"}
     repr_string = ""
-
     for i in range(0, 404, 101):
         if i > 0: repr_string += "\n\n"
         try:
-            repr_string += f"{grid_labels[grids[i]]}:\n"
+            repr_string += _fmt_block(grids[i])
         except IndexError:
             return repr_string
 
         for j in range(1, 101):
             if j % 10 == 1 and j > 1: repr_string += "\n"
-            try: value = grids[i + j]
-            except IndexError: return repr_string
-            repr_string += f"{colors[value]}{block}\033[0m"
+            try:
+                repr_string += _fmt_block(grids[i + j])
+            except IndexError:
+                return repr_string
     return repr_string
 
 

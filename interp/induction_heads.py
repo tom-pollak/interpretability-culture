@@ -35,28 +35,87 @@ final_grid_slice = slice(303, None)
 
 # %%
 
-model.add_hook("blocks.0.hook_attn_out", zero_abl_hook)  # type: ignore
+print("Running zero ablation on attention...")
 
-preds = model.generate(
-    prep_quiz(quizzes[:1]), max_new_tokens=100, use_past_kv_cache=False
-)
-assert isinstance(preds, t.Tensor)
-preds = preds[:, 1:]  # strip 0 token
-
-for quiz, pred in zip(quizzes, preds):
-    correct = t.all(quiz == pred).item()
-    print("correct:", correct)
-    if not correct:
-        print("Ground Truth")
-        print(repr_grid(quiz))
-        print(
-            "################################################################################"
+verbose = False
+k = 5
+task_losses = {}
+orig_losses = {}
+for task_name, task in zip(task_names, tasks):
+    if verbose:
+        print(f"# {task_name}")
+    quizzes = qm.problem.generate_w_quizzes_(num_tasks, [task]).to(device)
+    batch = TOK_PREPROCESS(quizzes)
+    with t.inference_mode():
+        orig_loss = (
+            model(batch, return_type="loss", loss_per_token=True)[:, final_grid_slice]
+            .mean()
+            .item()
         )
-    try:
-        print(repr_grid(pred))
-    except:
-        print(preds[:, final_grid_slice])
+        if verbose:
+            print(f"Orig: {orig_loss:.2e}")
+        orig_losses[task_name] = orig_loss
+        layer_diffs = []
+        for i in range(model.cfg.n_layers):
+            loss = (
+                model.run_with_hooks(
+                    batch,
+                    return_type="loss",
+                    fwd_hooks=[(f"blocks.{i}.hook_attn_out", zero_abl_hook)],
+                    loss_per_token=True,
+                )[:, final_grid_slice]
+                .mean()
+                .item()
+            )
+            if verbose:
+                print(f"Layer {i}: {loss:.2e}")
+            layer_diffs.append((i, loss - orig_loss))
+        task_losses[task_name] = layer_diffs
+    if verbose:
+        print("\n------\n")
 
+for task_name, layer_diffs in task_losses.items():
+    layer_diffs.sort(key=lambda x: x[1], reverse=True)
+    print(f"\nTopk layers with highest loss: ({task_name})")
+    print(f"\tOrig: {orig_losses[task_name]:.2e}")
+    for i, diff in layer_diffs[:k]:
+        print(f"\tdiff {i}: {diff:.2e}")
+
+"""
+Wow! we can see that the first (0th) layer has an outsized impact on the loss of *all* tasks. All other layers have a several order of magnitude smaller impact.
+"""
+
+# %%
+
+def generate(model, quiz, verbose=True):
+    pred = model.generate(
+        prep_quiz(quiz),
+        max_new_tokens=100,
+        use_past_kv_cache=False, # bug (think in sinosoidal pos encoding) this kv cache is broken
+        verbose=False
+    )[:, 1:] # strip 0 token
+    assert isinstance(pred, t.Tensor)
+    correct = t.all(quiz == pred).item()
+
+    if verbose:
+        print("correct:", correct)
+        print(repr_grid(quiz[0, :303]))
+        print("#########")
+        print("Ground Truth")
+        last_grid_quiz, last_grid_pred = quiz[0, 303:], pred[0, 303:]
+        print(repr_grid(last_grid_quiz))
+        if not correct:
+            print("Predicted")
+            try:
+                print(repr_grid(last_grid_pred))
+            except IndexError:
+                print(last_grid_pred)
+
+    return correct, pred
+
+
+model.add_hook("blocks.0.hook_attn_out", zero_abl_hook)  # type: ignore
+generate(model, quizzes[:1])
 model.reset_hooks()
 
 # %%
@@ -65,7 +124,7 @@ model.reset_hooks()
 
 # Jumping to conclusions
 
-So this was my firest indication that the model was incorporating an induction head in the first layer attention head
+This was my first indication that the model was incorporating an induction head in the first layer attention head
 
 preds = [11, ... 12, ... 13, ... 14, 13, ... ]
 
@@ -116,7 +175,6 @@ display(
     cv.attention.attention_pattern(
         tokens=str_tokens,
         attention=attn_pattern,
-        # attention_head_names=[f"L0H{i}" for i in range(12)],
     )
 )
 
@@ -132,7 +190,11 @@ print("Heads attending to previous grid =", ", ".join(prev_attn_detector(cache, 
 """
 There's an even stronger head, 0!
 
-And we can see that it strongly relates the to the current token from the previous grid, and if in the first grid it attends to the previous token
+And we can see that it strongly relates the to the current token from the previous grid, and if in the first grid it attends to the previous token.
+
+(It also slightly attends to the token 20 tokens either side of the previous grid)
+
+This could be a fixed distance induction head???? Of course the model will know *exactly where the previous token will be! Always 100 tokens back.
 """
 
 attn_pattern = cache["pattern", 0][0]
@@ -141,12 +203,122 @@ display(
     cv.attention.attention_pattern(
         tokens=str_tokens,
         attention=attn_pattern,
-        # attention_head_names=[f"L0H{i}" for i in range(12)],
     )
 )
 
+# %%
+
+"""
+Ok let's try to test this, if the attention pattern writes directly into W_U subspace, we can ablate ALL other layers & heads, and see if the output repeats the previous grid.
+
+This isn't foolproof, I'm sure there must be a lot more in the network, but it's a nice test to see if we're on track.
+
+So we're essentially doing: W_E (layer 0 head 0) W_U
+"""
+
+
+ablate_mlp = [
+    (f"blocks.{i}.hook_mlp_out", zero_abl_hook)
+    for i in range(model.cfg.n_layers)
+]
+
+
+def zero_abl_except_head(activation, hook):
+    B, H, T, _ = activation.shape
+    act = t.zeros(B, H, T, T)
+    act[:, :, t.arange(T), t.clamp(t.arange(T)-100, 0)] = 1
+    return act
+
+ablate_attn = [
+    (f"blocks.{i}.attn.hook_pattern",
+    zero_abl_except_head if i == 0 else zero_abl_hook)
+    for i in range(model.cfg.n_layers)
+]
+
+
+for hook in ablate_mlp + ablate_attn:
+    model.add_hook(*hook)  # type: ignore
+
+generate(model, quiz)
+model.reset_hooks()
 
 # %%
+
+"""
+Ok so it's not perfect, but it's pretty close!
+
+We could go further down this rabbit hole, and try to extract a "clean" representation of the previous grid, but this seems fairly trivial and got me thinking -- for 90% of even the new grid, the model can just copy the previous grid. What seems more interesting is the 10% of the time when the model does something different.
+
+It makes sense that even though it has a much smaller impact on the overall loss, the calculations done in later layers are much more interesting.
+"""
+
+
+
+for layer in range(GPT_SMALL.n_layers):
+    print(f"ablating attn layer {layer}: ", end="")
+    model.add_hook(f"blocks.{layer}.hook_attn_out", zero_abl_hook)  # type: ignore
+    correct, pred = generate(model, quizzes[:1], verbose=False)
+    print("correct:", correct)
+    if not correct:
+        print("Ground Truth")
+        print(repr_grid(quizzes[0, 303:]))
+        print("Predicted")
+        print(repr_grid(pred[0, 303:]))
+    model.reset_hooks()
+
+# %%
+
+"""
+Instead of investigating the whole predicted grid, let's instead investigate the difference between the predicted grid and the previous grid. Maybe there's more interesting features!
+"""
+
+print("Running zero ablation on attention...")
+
+@t.no_grad()
+def quiz_diff_mask(quizzes):
+    final_grid_slice = slice(-100, None) # not including the special tokens (always different and easy)
+    second_final_grid_slice = slice(-201, -101)
+    return t.argwhere(quizzes[:, final_grid_slice] != quizzes[:, second_final_grid_slice])
+
+
+task_name = "task_frame"
+num_tasks = 32
+quizzes = qm.problem.generate_w_quizzes_(
+    num_tasks, [qm.problem.all_tasks[task_names.index(task_name)]]
+)
+assert isinstance(quizzes, t.Tensor)
+quizzes = quizzes.to(device)
+batch = TOK_PREPROCESS(quizzes)
+mask = quiz_diff_mask(quizzes)
+with t.inference_mode():
+    orig_logits, orig_loss = model(batch, return_type="both", loss_per_token=True)
+    orig_tfm_loss = orig_loss[mask].mean().item()
+    orig_tfm_logits = orig_loss[mask].mean().item()
+    print(f"orig loss: {orig_tfm_loss:.2e}")
+    for i in range(model.cfg.n_layers):
+        logits, loss = model.run_with_hooks(
+            batch,
+            return_type="both",
+            fwd_hooks=[(f"blocks.{i}.hook_attn_out", zero_abl_hook)],
+            loss_per_token=True,
+        )
+        tfm_loss = loss[mask].mean().item()
+        tfm_logits = logits[mask]
+        print(f"Layer {i} diff: {tfm_loss - orig_tfm_loss:.2e}")
+
+# %%
+
+
+# %%
+
+# %%
+
+
+
+# %%
+
+
+
 
 """
 
