@@ -3,16 +3,16 @@ from interp.culture import *
 
 import torch as t
 import numpy as np
-from datasets import Dataset, Features, ClassLabel, Sequence, Value
+from datasets import DatasetDict, Dataset, Features, ClassLabel, Sequence, Value
 from tqdm import tqdm
 
 
 DATASET_NAME = "tommyp111/culture-puzzles-1M"
-NELEMS = 1_000_000
+NELEMS = 100  # 1_000_000
 SEED = 42
 
 
-def load_dataset() -> Dataset:
+def create_grid_dataset() -> Dataset:
     qm = load_quizzes()
 
     quizzes = qm.problem.all_tasks
@@ -74,12 +74,23 @@ def load_dataset() -> Dataset:
     return dataset
 
 
+def create_partition_dataset(dataset):
+    dataset.set_format(type="torch", columns=["input_ids", "label"])
+    labels = dataset.features["label"].names
+    dataset_partition = DatasetDict()
+    for i, label in enumerate(labels):
+        dataset_partition[label] = dataset.filter(
+            lambda batch: batch["label"] == i, batched=True
+        )
+    return dataset_partition
+
+
 # %%
 
 
 if __name__ == "__main__":
     print(f"Creating {NELEMS} quizzes...", end="")
-    dataset = load_dataset()
+    dataset = create_grid_dataset()
     print("done.")
 
     print("Dataset:")
@@ -89,6 +100,13 @@ if __name__ == "__main__":
     print("Head:")
     print(dataset[:5])
 
-    # print("Pushing to hub...", end="")
-    # dataset.push_to_hub(DATASET_NAME)
-    # print("done.")
+    dataset_partitioned = create_partition_dataset(dataset)
+    print()
+    print(dataset_partitioned)
+    for label, pd in dataset_partitioned.items():
+        print(f"{label}: {len(pd)}")
+
+    print("Pushing to hub...", end="")
+    dataset.push_to_hub(DATASET_NAME)
+    dataset_partitioned.push_to_hub(DATASET_NAME + "-partitioned")
+    print("done.")
