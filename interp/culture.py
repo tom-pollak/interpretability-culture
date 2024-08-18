@@ -26,6 +26,8 @@ from quiz_machine import QuizMachine
 from interp.grid_tokenizer import TOK_PREPROCESS, prep_quiz, sinusoidal_positional_encoding, repr_grid
 
 __all__ = [
+    "generate",
+    "generate_and_print",
     "load_culture",
     "load_hooked",
     "add_preproc",
@@ -34,6 +36,40 @@ __all__ = [
     "run_tests",
     "convert_culture_weights",
 ]
+
+
+def generate(model: HookedTransformer, quiz, verbose=True):
+    prefix_0 = True if quiz[:, 0].sum() != 0 else False
+    pred = model.generate(
+        prep_quiz(quiz, prefix_0=prefix_0),
+        max_new_tokens=100,
+        use_past_kv_cache=False, # bug (think in sinosoidal pos encoding) this kv cache is broken
+        verbose=verbose
+    )
+    assert isinstance(pred, t.Tensor)
+    if prefix_0: pred = pred[:, 1:] # strip 0 token
+    correct = t.all(quiz == pred, dim=-1)
+    return correct, pred
+
+def generate_and_print(model: HookedTransformer, quiz, verbose=True):
+    "Takes a single quiz, generates and prints results"
+    quiz = quiz[None] if quiz.ndim == 1 else quiz[:1]
+    correct, pred = generate(model, quiz, verbose)
+    correct = correct[0].item()
+    pred = pred[0]
+    quiz = quiz[0]
+
+    print("correct:", correct)
+    print(repr_grid(quiz[:-101]))
+
+    if not correct:
+        print("*** Ground Truth ***\n")
+
+    print(repr_grid(quiz[-101:]))
+
+    if not correct:
+        print("*** Predicted ***\n")
+        print(repr_grid(pred[-101:]))
 
 
 
@@ -368,7 +404,9 @@ if __name__ == "__main__":
 
     # eval logits same on one batch
     cult_m0 = culture_models[0].eval().to(device)
-    ht_m0 = load_hooked(0).eval().to(device)  # type: ignore
+    ht_m0 = load_hooked(0)
+    assert isinstance(ht_m0, HookedTransformer)
+    ht_m0 = ht_m0.eval().to(device)
     print(ht_m0)
 
     set_seed()
@@ -383,22 +421,7 @@ if __name__ == "__main__":
     )
 
     # run generate
-    NUM_GEN = 3
-    quizzes = qm.data_input(ht_m0, split="test")[0][:NUM_GEN].to(device)
-    preds = ht_m0.generate(prep_quiz(quizzes), max_new_tokens=100, use_past_kv_cache=False)
-    preds = preds[:, 1:] # strip 0 token
-
-    for quiz, pred in zip(quizzes, preds):
-        correct = t.all(quiz == pred).item()
-        print("correct:", correct)
-        print(repr_grid(quiz[:303]))
-        print("#########")
-        print("Ground Truth")
-        print(repr_grid(quiz[303:]))
-        if not correct:
-            print("Predicted")
-            print(repr_grid(pred[303:]))
-        print("\n####################################################################\n")
+    generate_and_print(ht_m0, inp[0])
 
     # eval accuracy
     print(f"evaluating accuracy ({args.num_test_samples} samples)")
