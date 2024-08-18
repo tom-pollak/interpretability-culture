@@ -38,23 +38,23 @@ __all__ = [
 ]
 
 
-def generate(model: HookedTransformer, quiz, verbose=True):
+def generate(model: HookedTransformer, quiz, **kwargs):
     prefix_0 = True if quiz[:, 0].sum() != 0 else False
     pred = model.generate(
         prep_quiz(quiz, prefix_0=prefix_0),
         max_new_tokens=100,
         use_past_kv_cache=False, # bug (think in sinosoidal pos encoding) this kv cache is broken
-        verbose=verbose
+        **kwargs,
     )
     assert isinstance(pred, t.Tensor)
     if prefix_0: pred = pred[:, 1:] # strip 0 token
     correct = t.all(quiz == pred, dim=-1)
     return correct, pred
 
-def generate_and_print(model: HookedTransformer, quiz, verbose=True):
+def generate_and_print(model: HookedTransformer, quiz, **kwargs):
     "Takes a single quiz, generates and prints results"
     quiz = quiz[None] if quiz.ndim == 1 else quiz[:1]
-    correct, pred = generate(model, quiz, verbose)
+    correct, pred = generate(model, quiz, **kwargs)
     correct = correct[0].item()
     pred = pred[0]
     quiz = quiz[0]
@@ -70,6 +70,8 @@ def generate_and_print(model: HookedTransformer, quiz, verbose=True):
     if not correct:
         print("*** Predicted ***\n")
         print(repr_grid(pred[-101:]))
+
+    return correct, pred
 
 
 

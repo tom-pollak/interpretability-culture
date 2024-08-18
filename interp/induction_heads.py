@@ -231,13 +231,15 @@ for layer in range(GPT_SMALL.n_layers):
     print(f"ablating attn layer {layer}: ", end="")
     model.add_hook(f"blocks.{layer}.hook_attn_out", zero_abl_hook)  # type: ignore
     correct, pred = generate(model, quizzes[:1])
-    print("correct:", correct)
+    print("correct:", correct.item())
     if not correct:
         print("Ground Truth")
         print(repr_grid(quizzes[0, 303:]))
         print("Predicted")
         print(repr_grid(pred[0, 303:]))
     model.reset_hooks()
+
+model.reset_hooks()
 
 # %%
 
