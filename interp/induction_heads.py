@@ -95,7 +95,7 @@ model.reset_hooks()
 
 """
 
-# Jumping to conclusions
+## Jumping to conclusions
 
 This was my first indication that the model was incorporating an induction head in the first layer attention head
 
@@ -302,7 +302,7 @@ We're using sinusoidal positional encoding so might be harder (but not impossibl
 
 """
 
-# Multipying through the residual stream
+# Multiplying through the residual stream
 
 Let's see which layers use the output of layer 0 the most. We can do this by multiplying through the residual stream
 
