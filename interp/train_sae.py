@@ -82,7 +82,9 @@ cfg = LanguageModelSAERunnerConfig(
 
 model = load_hooked(0)
 assert isinstance(model, HookedTransformer)
-# sparse_autoencoder = SAETrainingRunner(cfg, override_model=model).run()
+
+# if __name__ == "__main__":
+#     sparse_autoencoder = SAETrainingRunner(cfg, override_model=model).run()
 
 # %%
 
