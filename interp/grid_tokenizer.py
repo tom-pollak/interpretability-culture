@@ -22,15 +22,15 @@ __all__ = [
 TOK_PREPROCESS = nn.ConstantPad1d((1, -1), value=0)  # pads with a 0 start token, shaves off last token
 
 
-def prep_quiz(quizzes, prefix_0=True, slice_at=304):
-    if slice_at is not None:
-        quizzes = quizzes[:, :slice_at]
+def prep_quiz(quizzes, prefix_0=True, slice_at=305):
     if prefix_0:
         # different from TOK_PREPROCESS, this doesn't shave off the last token
         quizzes = t.cat((
             t.zeros(quizzes.shape[0], 1, device=quizzes.device, dtype=quizzes.dtype),
             quizzes
         ), dim=1)
+    if slice_at is not None:
+        quizzes = quizzes[:, :slice_at]
     return quizzes
 
 
@@ -70,7 +70,7 @@ def repr_grid(grids) -> str:
         "33m",  # 4: Yellow
         "38;5;87m",  # 5: Light Turquoise
         "32m",  # 6: Green
-        "95m",  # 7: Purple
+        "38;5;106m",  # 7: Olive Green
         "34m",  # 8: Blue
         "38;5;208m",  # 9: Orange
         "35m",  # 10: Magenta

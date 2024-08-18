@@ -87,35 +87,8 @@ Wow! we can see that the first (0th) layer has an outsized impact on the loss of
 
 # %%
 
-def generate(model, quiz, verbose=True):
-    pred = model.generate(
-        prep_quiz(quiz),
-        max_new_tokens=100,
-        use_past_kv_cache=False, # bug (think in sinosoidal pos encoding) this kv cache is broken
-        verbose=False
-    )[:, 1:] # strip 0 token
-    assert isinstance(pred, t.Tensor)
-    correct = t.all(quiz == pred).item()
-
-    if verbose:
-        print("correct:", correct)
-        print(repr_grid(quiz[0, :303]))
-        print("#########")
-        print("Ground Truth")
-        last_grid_quiz, last_grid_pred = quiz[0, 303:], pred[0, 303:]
-        print(repr_grid(last_grid_quiz))
-        if not correct:
-            print("Predicted")
-            try:
-                print(repr_grid(last_grid_pred))
-            except IndexError:
-                print(last_grid_pred)
-
-    return correct, pred
-
-
 model.add_hook("blocks.0.hook_attn_out", zero_abl_hook)  # type: ignore
-generate(model, quizzes[:1])
+generate_and_print(model, quizzes[0])
 model.reset_hooks()
 
 # %%
@@ -239,7 +212,7 @@ ablate_attn = [
 for hook in ablate_mlp + ablate_attn:
     model.add_hook(*hook)  # type: ignore
 
-generate(model, quiz)
+generate_and_print(model, quiz)
 model.reset_hooks()
 
 # %%
@@ -257,7 +230,7 @@ It makes sense that even though it has a much smaller impact on the overall loss
 for layer in range(GPT_SMALL.n_layers):
     print(f"ablating attn layer {layer}: ", end="")
     model.add_hook(f"blocks.{layer}.hook_attn_out", zero_abl_hook)  # type: ignore
-    correct, pred = generate(model, quizzes[:1], verbose=False)
+    correct, pred = generate(model, quizzes[:1])
     print("correct:", correct)
     if not correct:
         print("Ground Truth")
