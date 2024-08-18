@@ -103,8 +103,8 @@ if __name__ == "__main__":
     dataset_partitioned = create_partition_dataset(dataset)
     print()
     print(dataset_partitioned)
-    for label, pd in dataset_partitioned.items():
-        print(f"{label}: {len(pd)}")
+    for task, pd in dataset_partitioned.items():
+        print(f"{task}: {len(pd)}")
 
     print("Pushing to hub...", end="")
     dataset.push_to_hub(DATASET_NAME)
