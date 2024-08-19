@@ -24,7 +24,7 @@ import mygpt
 import grids
 from quiz_machine import QuizMachine
 
-from interp.grid_tokenizer import TOK_PREPROCESS, prep_quiz, sinusoidal_positional_encoding, repr_grid
+from interp.tokenizer import TOK_PREPROCESS, prep_quiz, sinusoidal_positional_encoding, repr_grid
 
 __all__ = [
     "generate",
