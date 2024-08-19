@@ -1,4 +1,8 @@
 # %%
+"""
+Configured from
+https://colab.research.google.com/github/jbloomAus/SAELens/blob/main/tutorials/training_a_sparse_autoencoder.ipynb
+"""
 from sae_lens import LanguageModelSAERunnerConfig, SAETrainingRunner
 from transformer_lens import HookedTransformer
 
