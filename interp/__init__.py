@@ -11,8 +11,6 @@ __all__ = [
     "set_seed",
     "get_device",
     "num_params",
-    "LOG_FILE",
-    "log_string",
 ]
 
 ## Culture repo ##
@@ -88,19 +86,3 @@ def get_device():
 
 def num_params(model):
     return sum(p.numel() for p in model.parameters())
-
-
-import time
-
-LOG_FILE = open(LOG_DIR / "eval.log", "a")
-
-
-def log_string(s):
-    t = time.strftime("%Y%m%d-%H:%M:%S ", time.localtime())
-
-    if LOG_FILE is not None:
-        LOG_FILE.write(t + s + "\n")
-        LOG_FILE.flush()
-
-    print(t + s)
-    sys.stdout.flush()
