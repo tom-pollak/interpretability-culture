@@ -13,6 +13,7 @@ pip install -e .
 
 # patch TransformerLens
 # culture MyGPT does not include a final layer norm, need to add support for this
+git clone https://github.com/TransformerLensOrg/TransformerLens.git
 cd TransformerLens
 git apply ../transfomer_lens_final_ln.patch
 pip install -e .
