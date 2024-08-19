@@ -20,8 +20,8 @@ pip install -e .
 
 ## Interpretability Report:
 
-- [01_induction_heads.pynb](./01_induction_heads.ipynb)
-- [02_sae.pynb](./02_sae.ipynb)
+- [01_induction_heads.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/01_induction_heads.ipynb)
+- [02_sae.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/02_sae.ipynb)
 
 
 ## Motivation / why
