@@ -2,8 +2,8 @@ from interp import (
     set_seed,
     get_device,
     num_params,
-    RESULT_DIR,
-    INTERP_RESULTS_DIR,
+    LOG_DIR,
+    CULTURE_REPO_ID,
     GPT_SMALL,
     QuizMachineConfig,
     QM_CONFIG,
@@ -12,6 +12,7 @@ from interp import (
 import math
 import tqdm
 from typing import Optional
+from huggingface_hub import hf_hub_download
 
 import torch as t
 import torch.nn as nn
@@ -108,9 +109,8 @@ def load_culture(model_ks=(0, 1, 2, 3)) -> list[mygpt.MyGPT]:
             activation_cache=False,
         )
 
-        d = t.load(
-            RESULT_DIR / f"gpt_{k:03d}.pth", map_location="cpu", weights_only=True
-        )
+        sd = hf_hub_download(CULTURE_REPO_ID, f"gpt_{k:03d}.pth")
+        d = t.load(sd, map_location="cpu", weights_only=True)
 
         sd = _update_state_dict_keys(d[0])
         model.load_state_dict(sd)
@@ -183,13 +183,14 @@ def load_quizzes(cfg: Optional[QuizMachineConfig] = None, logger=print, device=N
     qm = QuizMachine(
         problem=problem,
         batch_size=cfg.inference_batch_size,
-        result_dir=INTERP_RESULTS_DIR,
+        result_dir=LOG_DIR,
         prompt_noise=cfg.prompt_noise,
         logger=logger,
         use_brack_seq=False,
         device=device,
     )
-    qm.load_c_quizzes(RESULT_DIR / "c_quizzes.pth")
+    c_quizzes = hf_hub_download(CULTURE_REPO_ID, "c_quizzes.pth")
+    qm.load_c_quizzes(c_quizzes)
     qm.understood_structures = qm.understood_structures[:4]  # remove generation struct
     return qm
 
@@ -230,7 +231,7 @@ def run_tests(model, quiz_machine: QuizMachine, device=None):
         n_epoch=10_000,
         model=model,
         input=full_input[:2000],
-        result_dir=INTERP_RESULTS_DIR,
+        result_dir=LOG_DIR,
     )
     quiz_machine.logger(f"accuracy: {float(model.main_test_accuracy):.04f}")
 
@@ -357,7 +358,7 @@ if __name__ == "__main__":
         "model_ids",
         nargs="+",
         type=int,
-        choices=[0, 1, 2, 3],
+        choices=[0, 1, 2, 3, 4],
         default=[0],
         help="model id's to test",
     )
