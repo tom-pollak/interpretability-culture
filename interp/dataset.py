@@ -1,4 +1,3 @@
-# %%
 from interp.culture import *
 
 import torch as t
@@ -8,6 +7,7 @@ from tqdm import tqdm
 
 
 DATASET_NAME = "tommyp111/culture-puzzles-1M"
+DATASET_NAME_PARTITIONED = DATASET_NAME + "-partitioned"
 NELEMS = 100  # 1_000_000
 SEED = 42
 
@@ -85,10 +85,15 @@ def create_partition_dataset(dataset):
     return dataset_partition
 
 
-# %%
-
-
 if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Create a dataset for the Culture model"
+    )
+    parser.add_argument("--push_to_hub", action="store_true")
+    args = parser.parse_args()
+
     print(f"Creating {NELEMS} quizzes...", end="")
     dataset = create_grid_dataset()
     print("done.")
@@ -106,7 +111,8 @@ if __name__ == "__main__":
     for task, pd in dataset_partitioned.items():
         print(f"{task}: {len(pd)}")
 
-    print("Pushing to hub...", end="")
-    dataset.push_to_hub(DATASET_NAME)
-    dataset_partitioned.push_to_hub(DATASET_NAME + "-partitioned")
-    print("done.")
+    if args.push_to_hub:
+        print("Pushing to hub...", end="")
+        dataset.push_to_hub(DATASET_NAME)
+        dataset_partitioned.push_to_hub(DATASET_NAME_PARTITIONED)
+        print("done.")
