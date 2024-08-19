@@ -63,7 +63,7 @@ def create_tokenizer() -> PreTrainedTokenizerFast:
 def repr_grid(grids) -> str:
     # ANSI color codes
     colors = [
-        "0m",   # 0: White
+        "38;5;254m",   # 0: White
         "36m",  # 1: Cyan
         "31m",  # 2: Red
         "38;5;219m", # 3: Light Pink
