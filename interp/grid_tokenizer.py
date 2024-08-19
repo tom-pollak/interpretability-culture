@@ -2,7 +2,7 @@ import torch as t
 import torch.nn as nn
 import numpy as np
 
-from interp import GPT_SMALL
+from interp import GPT_SMALL, TOKENIZER_REPO_ID
 
 from transformers import PreTrainedTokenizerFast
 from tokenizers import Tokenizer
@@ -135,5 +135,5 @@ if __name__ == "__main__":
 
     if args.push_to_hub:
         print("\n\npushing to hub... ", end="")
-        tokenizer.push_to_hub("tommyp111/culture-grid-tokenizer")
+        tokenizer.push_to_hub(TOKENIZER_REPO_ID)
         print("done.")
