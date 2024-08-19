@@ -45,8 +45,8 @@ def sinusoidal_positional_encoding(
 
 
 def create_tokenizer() -> PreTrainedTokenizerFast:
-    vocab = {str(i): i for i in range(11)}  # 0-A
-    vocab.update({"A": 11, "f_A": 12, "B": 13, "f_B": 14, "[UNK]": 15})
+    vocab = {f"{i:x}": i for i in range(11)}  # 0-A
+    vocab.update({"X": 11, "f_X": 12, "Y": 13, "f_Y": 14, "[UNK]": 15})
     model = WordLevel(vocab, unk_token="[UNK]")
     tokenizer = Tokenizer(model)
     tokenizer.pre_tokenizer = Whitespace()  # type: ignore
@@ -76,11 +76,11 @@ def repr_grid(grids) -> str:
         "35m",  # 10: Magenta
     ]
     block = "███"
-    grid_labels = {11: "A", 12: "f(A)", 13: "B", 14: "f(B)"}
+    grid_labels = {11: "X", 12: "f(X)", 13: "Y", 14: "f(Y)"}
 
     def _fmt_block(value: int) -> str:
         if value in grid_labels:
-            return f"{grid_labels[value]}\n"
+            return f"{grid_labels[value]}"
         return f"\033[{colors[value]}{block}\033[0m"
 
     if isinstance(grids, t.Tensor): grids = grids.cpu().numpy()
@@ -91,13 +91,8 @@ def repr_grid(grids) -> str:
     repr_string = ""
     for i in range(0, 404, 101):
         if i > 0: repr_string += "\n\n"
-        try:
-            repr_string += _fmt_block(grids[i])
-        except IndexError:
-            return repr_string
-
-        for j in range(1, 101):
-            if j % 10 == 1 and j > 1: repr_string += "\n"
+        for j in range(101):
+            if j % 10 == 1: repr_string += "\n"
             try:
                 repr_string += _fmt_block(grids[i + j])
             except IndexError:
