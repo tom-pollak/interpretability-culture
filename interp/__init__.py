@@ -29,7 +29,8 @@ if str(culture_dir) not in sys.path:
     sys.path.append(str(culture_dir.resolve()))
 
 CULTURE_REPO_ID = "tommyp111/culture-gpt"
-SAE_REPO_ID = "tommyp111/culture-gpt-sae"
+SAE_REPO_ID = "tommyp111/culture-sae"
+TOKENIZER_REPO_ID = "tommyp111/culture-tokenizer"
 
 ## Config ##
 
@@ -45,7 +46,7 @@ GPT_SMALL = HookedTransformerConfig(
     d_vocab=15,
     act_fn="relu",
     final_ln=False,  # requires custom patch
-    tokenizer_name="tommyp111/culture-grid-tokenizer",
+    tokenizer_name=TOKENIZER_REPO_ID,
     trust_remote_code=True,
     default_prepend_bos=False,
     tokenizer_prepends_bos=False,

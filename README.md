@@ -62,7 +62,15 @@ There's a few "gotachs" in running the GPTs:
 - There's no final layer norm in `MyGPT`, so I had to patch TransformerLens to support this too
 - You must prepend the input with a `0` as a BOS token (the models generate the entire sequence when creating new quizzes, but not for eval)
 
+Find model weights [here](https://huggingface.co/collections/tommyp111/culture-66c3463dff3d3581db9eabd2)
+
 ## Repository
+
+### `culture/`
+
+> **This is a fork of the original culture project, by Francois Fleuret.**
+
+Model weights are stored here: [tommyp111/culture-gpt](https://huggingface.co/tommyp111/culture-gpt)
 
 ### `culture.py`
 
@@ -77,12 +85,11 @@ Contains most of the lib functionality, including:
 
 Run `python -m interp.culture 0 1 2 3 --num_test_samples 100` to test most of the library functionality, and run accuracy tests on the models. Setting `--num_test_samples` to 2000 is standard for eval, and should achieve ~95% accuracy. I've found that using a smaller number of samples can give a lower accuracy (should be at least 80s).
 
-
 ### `grid_tokenizer.py`
 
 Create a HF tokenizer for the models. required for `train_sae.py`
 
-Can find it on HF here: [tommyp111/culture-grid-tokenizer](https://huggingface.co/tommyp111/culture-grid-tokenizer)
+Can find it on HF here: [tommyp111/culture-tokenizer](https://huggingface.co/tommyp111/culture-tokenizer)
 
 - `repr_grid` for pretty printing.
 - `sinusoidal_positional_encoding` impl
@@ -99,3 +106,5 @@ Create a 1M element HF dataset. Again used for `train_sae.py`
 ### `train_sae.py`
 
 Train a sparse autoencoder on the models using `sae_lens.SAETrainingRunner`.
+
+Load pretrained SAE from here: [tommyp111/culture-sae](https://huggingface.co/tommyp111/culture-sae)
