@@ -26,6 +26,9 @@ DATASET_NAME = "tommyp111/culture-puzzles-1M"
 
 CTX_SIZE = 405
 
+MODEL = load_hooked(0)
+assert isinstance(MODEL, HookedTransformer)
+
 from pathlib import Path
 
 pretrained_path = Path(__file__).parents[1] / "culture-gpt-0-sae"
@@ -84,11 +87,8 @@ cfg = LanguageModelSAERunnerConfig(
     from_pretrained_path=str(pretrained_path.resolve()),
 )
 
-model = load_hooked(0)
-assert isinstance(model, HookedTransformer)
-
 # if __name__ == "__main__":
-#     sparse_autoencoder = SAETrainingRunner(cfg, override_model=model).run()
+#     sparse_autoencoder = SAETrainingRunner(cfg, override_model=MODEL).run()
 
 # %%
 
@@ -103,7 +103,7 @@ import torch
 import pandas as pd
 
 # Let's start by getting the top 10 logits for each feature
-projection_onto_unembed = sae.W_dec @ model.W_U
+projection_onto_unembed = sae.W_dec @ MODEL.W_U
 
 
 # get the top 10 logits.
@@ -114,7 +114,7 @@ random_indices = torch.randint(0, projection_onto_unembed.shape[0], (10,))
 
 # Show the top 10 logits promoted by those features
 top_10_logits_df = pd.DataFrame(
-    [model.to_str_tokens(i) for i in inds[random_indices]],
+    [MODEL.to_str_tokens(i) for i in inds[random_indices]],
     index=random_indices.tolist(),
 ).T
 top_10_logits_df
@@ -134,7 +134,7 @@ sae.eval()  # prevents error if we're expecting a dead neuron mask for who grads
 with torch.no_grad():
     # activation store can give us tokens.
     batch_tokens = dataset[:32]["input_ids"].to(device)
-    _, cache = model.run_with_cache(batch_tokens, prepend_bos=False)
+    _, cache = MODEL.run_with_cache(batch_tokens, prepend_bos=False)
 
     # Use the SAE
     feature_acts = sae.encode(cache[sae.cfg.hook_name])
@@ -161,10 +161,10 @@ def reconstr_hook(activation, hook, sae_out):
 def zero_abl_hook(activation, hook):
     return torch.zeros_like(activation)
 
-print("Orig", model(batch_tokens, return_type="loss").item())
+print("Orig", MODEL(batch_tokens, return_type="loss").item())
 print(
     "reconstr",
-    model.run_with_hooks(
+    MODEL.run_with_hooks(
         batch_tokens,
         fwd_hooks=[
             (
@@ -177,7 +177,7 @@ print(
 )
 print(
     "Zero",
-    model.run_with_hooks(
+    MODEL.run_with_hooks(
         batch_tokens,
         return_type="loss",
         fwd_hooks=[(sae.cfg.hook_name, zero_abl_hook)],

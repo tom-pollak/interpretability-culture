@@ -2,10 +2,9 @@
 
 __all__ = [
     "ROOT_DIR",
-    "INTERP_DIR",
-    "INTERP_RESULTS_DIR",
-    "CULTURE_DIR",
-    "RESULT_DIR",
+    "LOG_DIR",
+    "CULTURE_REPO_ID",
+    "SAE_REPO_ID",
     "GPT_SMALL",
     "QuizMachineConfig",
     "QM_CONFIG",
@@ -22,16 +21,15 @@ import sys
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parents[1]
-INTERP_DIR = ROOT_DIR / "interp"
-INTERP_RESULTS_DIR = INTERP_DIR / "results_interp"
+LOG_DIR = ROOT_DIR / "results_interp"
 
-CULTURE_DIR = ROOT_DIR / "culture"
-RESULT_DIR = CULTURE_DIR / "results_noise"
-assert CULTURE_DIR.exists() and RESULT_DIR.exists()
+culture_dir = ROOT_DIR / "culture"
+assert culture_dir.exists()
+if str(culture_dir) not in sys.path:
+    sys.path.append(str(culture_dir.resolve()))
 
-if str(CULTURE_DIR) not in sys.path:
-    sys.path.append(str(CULTURE_DIR.resolve()))
-
+CULTURE_REPO_ID = "tommyp111/culture-gpt"
+SAE_REPO_ID = "tommyp111/culture-gpt-sae"
 
 ## Config ##
 
@@ -93,7 +91,7 @@ def num_params(model):
 
 import time
 
-LOG_FILE = open(INTERP_RESULTS_DIR / "eval.log", "a")
+LOG_FILE = open(LOG_DIR / "eval.log", "a")
 
 
 def log_string(s):

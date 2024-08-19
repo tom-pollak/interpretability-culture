@@ -1,8 +1,10 @@
 # %%
 from interp.all import *
 from datasets import load_dataset, Dataset, DatasetDict
+from huggingface_hub import hf_hub_download
 from transformer_lens import HookedTransformer
 from sae_lens import SAE
+import json
 from pathlib import Path
 from functools import partial
 
@@ -14,9 +16,28 @@ model: HookedTransformer
 model = load_hooked(0).eval().to(device)  # type: ignore
 
 
-sae = SAE.load_from_pretrained(str(sae_pretrained_path), device=str(device))
-sae.eval()
+def load_sae(path: str) -> SAE:
+    from sae_lens import SAEConfig
+    from sae_lens.toolkit.pretrained_sae_loaders import read_sae_from_disk
+    from sae_lens.config import DTYPE_MAP
 
+    weight_path = hf_hub_download(SAE_REPO_ID, path + "/sae_weights.safetensors")
+    cfg_path = hf_hub_download(SAE_REPO_ID, path + "/cfg.json")
+    with open(cfg_path, "r") as f:
+        cfg_dict = json.load(f)
+    cfg_dict, state_dict = read_sae_from_disk(
+        cfg_dict=cfg_dict,
+        weight_path=weight_path,
+        device=str(device),
+        dtype=DTYPE_MAP[cfg_dict["dtype"]],
+    )
+    sae_cfg = SAEConfig.from_dict(cfg_dict)
+    sae = SAE(sae_cfg)
+    sae.load_state_dict(state_dict)
+    sae.eval().to(device)
+    return sae
+
+sae = load_sae("gpt-0/blocks_8_mlp_out")
 
 dataset = load_dataset("tommyp111/culture-puzzles-1M-partitioned")
 assert isinstance(dataset, DatasetDict)
