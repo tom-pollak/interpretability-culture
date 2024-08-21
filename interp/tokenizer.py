@@ -56,7 +56,7 @@ def create_tokenizer() -> PreTrainedTokenizerFast:
         unk_token="[UNK]",
         pad_token="0",
         bos_token="0",
-        model_max_length=GPT_SMALL.n_ctx + 1,
+        model_max_length=GPT_SMALL.n_ctx,
     )
 
 
