@@ -24,7 +24,12 @@ import mygpt
 import grids
 from quiz_machine import QuizMachine
 
-from interp.tokenizer import TOK_PREPROCESS, prep_quiz, sinusoidal_positional_encoding, repr_grid
+from interp.tokenizer import (
+    TOK_PREPROCESS,
+    prep_quiz,
+    sinusoidal_positional_encoding,
+    repr_grid,
+)
 
 __all__ = [
     "generate",
@@ -44,13 +49,15 @@ def generate(model: HookedTransformer, quiz, **kwargs):
     pred = model.generate(
         prep_quiz(quiz, prefix_0=prefix_0),
         max_new_tokens=100,
-        use_past_kv_cache=False, # bug (think in sinosoidal pos encoding) this kv cache is broken
+        use_past_kv_cache=False,  # bug (think in sinosoidal pos encoding) this kv cache is broken
         **kwargs,
     )
     assert isinstance(pred, t.Tensor)
-    if prefix_0: pred = pred[:, 1:] # strip 0 token
+    if prefix_0:
+        pred = pred[:, 1:]  # strip 0 token
     correct = t.all(quiz == pred, dim=-1)
     return correct, pred
+
 
 def generate_and_print(model: HookedTransformer, quiz, **kwargs):
     "Takes a single quiz, generates and prints results"
@@ -73,7 +80,6 @@ def generate_and_print(model: HookedTransformer, quiz, **kwargs):
         print(repr_grid(pred[-101:]))
 
     return correct, pred
-
 
 
 # ----- loading models -----

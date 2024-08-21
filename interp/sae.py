@@ -1,12 +1,13 @@
 # %%
 from interp.all import *
-from datasets import load_dataset, Dataset, DatasetDict
+from datasets import load_dataset, DatasetDict
 from huggingface_hub import hf_hub_download
 from transformer_lens import HookedTransformer
 from sae_lens import SAE
 import json
 from pathlib import Path
 from functools import partial
+import torch as t
 
 
 device = get_device()
@@ -28,14 +29,17 @@ def load_sae(path: str) -> SAE:
     cfg_dict, state_dict = read_sae_from_disk(
         cfg_dict=cfg_dict,
         weight_path=weight_path,
-        device=str(device),
+        device="cpu",
         dtype=DTYPE_MAP[cfg_dict["dtype"]],
     )
+    print(cfg_dict)
     sae_cfg = SAEConfig.from_dict(cfg_dict)
+    sae_cfg.device = str(device)
     sae = SAE(sae_cfg)
     sae.load_state_dict(state_dict)
-    sae.eval().to(device)
+    sae.eval()
     return sae
+
 
 sae = load_sae("gpt-0/blocks_8_mlp_out")
 
@@ -45,65 +49,41 @@ dataset.set_format("pt")
 
 # %%
 
+"""
 
-@t.no_grad()
-def quiz_diff_mask(quizzes):
-    final_grid_slice = slice(
-        -100, None
-    )  # not including the special tokens (always different and easy)
-    second_final_grid_slice = slice(-201, -101)
-    return t.argwhere(
-        quizzes[:, final_grid_slice] != quizzes[:, second_final_grid_slice]
-    )
+Bit of a util for later, The first and second grid are a one-shot example, so we should not include these in our eval / analysis. Let's create slices that extract the final and second final grid.
+
+(not including the special tokens A f(A) etc. These are easy).
+
+Another gotcha: these should be from a "stripped" batch, i.e. a batch without it's final token. I've found this edge case to be rather strange, as
 
 
-def zero_abl_hook(activation, hook):
-    return t.zeros_like(activation)
+I've found this edge case to be rather strange, and HookedTransformer complains about
 
 
-# %%
+"""
 
-# batch = dataset["frame"]["input_ids"][:100].to(device) # shave off last token
-for task, data in dataset.items():
-    print("\ntask:", task)
-    batch = data["input_ids"][:100].to(device)
-    batch_stripped = batch[:, :-1]
-    # mask = quiz_diff_mask(batch_stripped)
-    with t.inference_mode():
-        model.reset_hooks()
-        orig_logits, orig_loss = model(
-            batch_stripped, return_type="both", loss_per_token=True
-        )
 
-        # orig_tfm_loss = orig_loss[mask].mean().item()
-        # orig_tfm_logits = orig_loss[mask].mean().item()
-        orig_tfm_loss = orig_loss.mean().item()
-        orig_tfm_logits = orig_loss.mean().item()
+final_grid_slice = slice(-99, None)
+second_final_grid_slice = slice(-200, -101)
 
-        print(f"orig loss: {orig_tfm_loss:.2e}")
-        for i in range(model.cfg.n_layers):
-            logits, loss = model.run_with_hooks(
-                batch_stripped,
-                return_type="both",
-                fwd_hooks=[(f"blocks.{i}.hook_mlp_out", zero_abl_hook)],
-                loss_per_token=True,
-            )
-            # tfm_loss = loss[mask].mean().item()
-            # tfm_logits = logits[mask]
-            tfm_loss = loss.mean().item()
-            tfm_logits = logits
-            print(f"Layer {i} diff: {tfm_loss - orig_tfm_loss:.2e}")
+batch = dataset["contact"]["input_ids"][:5].to(device)
+batch_stripped = batch[:, :-1]
+
+a = batch_stripped[:1].clone()
+print(repr_grid(a[0]))
+print("\n████████████████████████████████████████████████████████████████████████████████\n")
+a[:, second_final_grid_slice] = 4
+a[:, final_grid_slice] = 5
+print(repr_grid(a[0]))
 
 # %%
+
+"Now let's "
 
 
 def ablate_mlp_single_task(batch, layer):
-    # not including the special tokens (always different and easy)
-    final_grid_slice = slice(-100, None)
-
     batch_stripped = batch[:, :-1]
-    diff_mask = quiz_diff_mask(batch_stripped)
-
     with t.inference_mode():
         logits_orig, loss_orig = model(batch_stripped, return_type="both")
         logits_orig = logits_orig[:, final_grid_slice]
@@ -132,6 +112,7 @@ def ablate_mlp_single_task(batch, layer):
     print("wrong because of ablation:", wrong_because_ablate)
     print()
     return wrong_because_ablate
+
 
 # %%
 
@@ -182,15 +163,19 @@ with t.inference_mode():
 
 # %%
 
+
 def reconstr_hook(activation, hook, sae_out):
     _, T, _ = activation.shape
     return sae_out[None, :T, :]
 
+
 model.reset_hooks()
 tasks_correct = []
 for i in range(min(5, len(wrong_because_ablate))):
-    model.add_hook(sae.cfg.hook_name, partial(reconstr_hook, sae_out=sae_out[i])) # type: ignore
-    correct, _ = generate_and_print(model, batch[wrong_because_ablate[i]], temperature=0.0)
+    model.add_hook(sae.cfg.hook_name, partial(reconstr_hook, sae_out=sae_out[i]))  # type: ignore
+    correct, _ = generate_and_print(
+        model, batch[wrong_because_ablate[i]], temperature=0.0
+    )
     tasks_correct.append(correct)
     model.reset_hooks()
 
@@ -210,7 +195,6 @@ Like before, I'm going to look at the loss at only the final grid where the squa
 """
 
 
-
 # %%
 
 """
@@ -222,6 +206,80 @@ Investiage which W_dec neurons fire
 """
 Find the mlp in the other models that cause this same behaviour -- is this univeral neurons?
 """
+
+# %%
+
+# %%
+# ████████████████████████████████████  old  █████████████████████████████████████
+
+"Instead of investigating the whole predicted grid, let's instead investigate the difference between the predicted grid and the previous grid. Maybe there's more interesting features!"
+"Nifty, now let's create a mask that selects the squares that are different between the final two grids (colored yellow)"
+
+@t.no_grad()
+def quiz_diff_mask(quizzes):
+    final_grid_slice = slice(-99, None)
+    second_final_grid_slice = slice(-200, -101)
+
+    idxs = t.argwhere(
+        quizzes[:, final_grid_slice] != quizzes[:, second_final_grid_slice]
+    )
+    B, T = quizzes.shape
+    start_idx = T + final_grid_slice.start
+    idxs[:, 1] += start_idx
+    return idxs
+
+def get_mask(batch, mask):
+    return batch[mask[:, 0], mask[:, 1]]
+
+idxs = quiz_diff_mask(batch_stripped)
+a = batch_stripped.clone()
+print(repr_grid(a[1]))
+print("\n████████████████████████████████████████████████████████████████████████████████\n")
+# get_mask(a, idxs).fill_(4)
+a[idxs[:,0], idxs[:,1]] = 4
+print(repr_grid(a[1]))
+
+
+def zero_abl_hook(activation, hook):
+    return t.zeros_like(activation)
+
+for task, data in dataset.items():
+    print("\ntask:", task)
+    batch = data["input_ids"][:5].to(device)
+    batch_stripped = batch[:, :-1]
+    mask = quiz_diff_mask(batch_stripped)
+    with t.inference_mode():
+        model.reset_hooks()
+        orig_logits, orig_loss = model(
+            batch_stripped, return_type="both", loss_per_token=True
+        )
+
+        # orig_tfm_loss = orig_loss[mask[:,0], mask[:,1]].mean().item()
+        # orig_tfm_logits = orig_logits[mask[:,0], mask[:,1]].mean().item()
+
+        orig_tfm_loss = orig_loss[:, final_grid_slice].mean().item()
+        orig_tfm_logits = orig_logits[:, final_grid_slice].mean().item()
+
+        # orig_tfm_loss = orig_loss.mean().item()
+        # orig_tfm_logits = orig_loss.mean().item()
+
+        print(f"orig loss: {orig_tfm_loss:.2e}")
+        for i in range(model.cfg.n_layers):
+            logits, loss = model.run_with_hooks(
+                batch_stripped,
+                return_type="both",
+                fwd_hooks=[(f"blocks.{i}.hook_mlp_out", zero_abl_hook)],
+                loss_per_token=True,
+            )
+            # tfm_loss = loss[mask[:,0], mask[:,1]].mean().item()
+            # tfm_logits = logits[mask[:,0], mask[:,1]]
+
+            tfm_loss = loss[:, final_grid_slice].mean().item()
+            tfm_logits = logits[:, final_grid_slice].mean().item()
+
+            # tfm_loss = loss.mean().item()
+            # tfm_logits = logits
+            print(f"Layer {i} diff: {tfm_loss - orig_tfm_loss:.2e}")
 
 
 
@@ -319,4 +377,5 @@ Find the mlp in the other models that cause this same behaviour -- is this unive
 #         fwd_hooks=[(sae.cfg.hook_name, zero_abl_hook)],
 #     ).item(),
 # )
+
 
