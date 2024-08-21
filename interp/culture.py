@@ -375,10 +375,10 @@ if __name__ == "__main__":
 
     # test positional encoding
     mygpt_pos_enc = mygpt.AddPositionalEncoding(1e5)(
-        mygpt.BracketedSequence(t.zeros(32, 404, 512))
+        mygpt.BracketedSequence(t.zeros(32, 405, 512))
     ).x
     pos_enc = einops.repeat(
-        sinusoidal_positional_encoding(404, 512, 1e5),
+        sinusoidal_positional_encoding(405, 512, 1e5),
         "pos d_model -> batch pos d_model",
         batch=32,
     )
