@@ -31,21 +31,6 @@
 "Instead of investigating the whole predicted grid, let's instead investigate the difference between the predicted grid and the previous grid. Maybe there's more interesting features!"
 "Nifty, now let's create a mask that selects the squares that are different between the final two grids (colored yellow)"
 
-@t.no_grad()
-def quiz_diff_mask(quizzes):
-    final_grid_slice = slice(-99, None)
-    second_final_grid_slice = slice(-200, -101)
-
-    idxs = t.argwhere(
-        quizzes[:, final_grid_slice] != quizzes[:, second_final_grid_slice]
-    )
-    B, T = quizzes.shape
-    start_idx = T + final_grid_slice.start
-    idxs[:, 1] += start_idx
-    return idxs
-
-def get_mask(batch, mask):
-    return batch[mask[:, 0], mask[:, 1]]
 
 idxs = quiz_diff_mask(batch_stripped)
 a = batch_stripped.clone()
