@@ -19,6 +19,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from transformer_lens import HookedTransformer, HookedTransformerConfig
+from sae_lens import HookedSAETransformer
 
 import mygpt
 import grids
@@ -44,17 +45,20 @@ __all__ = [
 ]
 
 
-def generate(model: HookedTransformer, quiz, **kwargs):
+def generate(model: HookedTransformer, quiz, slice_at=305, **kwargs):
     prefix_0 = True if quiz[:, 0].sum() != 0 else False
+    max_new_tokens = 405 - slice_at
     pred = model.generate(
-        prep_quiz(quiz, prefix_0=prefix_0),
-        max_new_tokens=100,
+        prep_quiz(quiz, prefix_0=prefix_0, slice_at=slice_at),
+        max_new_tokens=max_new_tokens,
         use_past_kv_cache=False,  # bug (think in sinosoidal pos encoding) this kv cache is broken
         **kwargs,
     )
     assert isinstance(pred, t.Tensor)
     if prefix_0:
         pred = pred[:, 1:]  # strip 0 token
+    print("pred shape:", pred.shape)
+    print("quiz shape:", quiz.shape)
     correct = t.all(quiz == pred, dim=-1)
     return correct, pred
 
@@ -131,7 +135,8 @@ def _unwrap_single_element(l):
     return l[0] if len(l) == 1 else l
 
 
-def load_hooked(model_ks=(0, 1, 2, 3)) -> list[HookedTransformer] | HookedTransformer:
+def load_hooked(model_ks=(0, 1, 2, 3), sae=False) -> list[HookedTransformer] | HookedTransformer:
+    cls = HookedSAETransformer if sae else HookedTransformer
     models = load_culture(model_ks)
 
     # convert weights
@@ -140,7 +145,7 @@ def load_hooked(model_ks=(0, 1, 2, 3)) -> list[HookedTransformer] | HookedTransf
     # load
     hooked_tranformers = []
     for k, state_dict in enumerate(state_dicts):
-        ht = HookedTransformer(GPT_SMALL)
+        ht = cls(GPT_SMALL)
         ht.load_and_process_state_dict(
             state_dict,
             fold_ln=False,
