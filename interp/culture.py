@@ -57,8 +57,6 @@ def generate(model: HookedTransformer, quiz, slice_at=305, **kwargs):
     assert isinstance(pred, t.Tensor)
     if prefix_0:
         pred = pred[:, 1:]  # strip 0 token
-    print("pred shape:", pred.shape)
-    print("quiz shape:", quiz.shape)
     correct = t.all(quiz == pred, dim=-1)
     return correct, pred
 
