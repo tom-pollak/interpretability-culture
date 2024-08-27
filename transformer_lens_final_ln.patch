@@ -1,22 +1,23 @@
 diff --git a/transformer_lens/HookedTransformer.py b/transformer_lens/HookedTransformer.py
-index 164e998..15db0d5 100644
+index 8ee2e74f..dce09b51 100644
 --- a/transformer_lens/HookedTransformer.py
 +++ b/transformer_lens/HookedTransformer.py
 @@ -179,3 +179,5 @@ class HookedTransformer(HookedRootModule):
-
+ 
 -        if self.cfg.normalization_type == "RMS":
 +        if not self.cfg.final_ln:
 +            self.ln_final = nn.Identity()
 +        elif self.cfg.normalization_type == "RMS":
              self.ln_final = RMSNorm(self.cfg)
 diff --git a/transformer_lens/HookedTransformerConfig.py b/transformer_lens/HookedTransformerConfig.py
-index 6906de3..4031858 100644
+index 6906de38..40318588 100644
 --- a/transformer_lens/HookedTransformerConfig.py
 +++ b/transformer_lens/HookedTransformerConfig.py
 @@ -181,2 +181,3 @@ class HookedTransformerConfig:
              set.
 +        final_ln (bool): Whether to apply normalization before final unembed layer. Defaults to True.
-
+ 
 @@ -245,2 +246,3 @@ class HookedTransformerConfig:
      output_logits_soft_cap: float = -1.0
 +    final_ln: bool = True
+ 
