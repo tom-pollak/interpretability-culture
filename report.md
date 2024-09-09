@@ -2,12 +2,13 @@
 
 *This project builds upon [Francois Fleuret culture](http://fleuret.org/git/culture) (with his permission)*
 
-Repo: [https://github.com/tom-pollak/interpretability-culture](https://github.com/tom-pollak/interpretability-culture)
-HF: [https://huggingface.co/collections/tommyp111/culture-66c3463dff3d3581db9eabd2](https://huggingface.co/collections/tommyp111/culture-66c3463dff3d3581db9eabd2)
+- Repo: [https://github.com/tom-pollak/interpretability-culture](https://github.com/tom-pollak/interpretability-culture)
+- HF: [https://huggingface.co/collections/tommyp111/culture-66c3463dff3d3581db9eabd2](https://huggingface.co/collections/tommyp111/culture-66c3463dff3d3581db9eabd2)
 
 Logbooks:
-\- [01\_induction\_heads.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/01\_induction\_heads.ipynb)
-\- [02\_sae.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/02\_sae.ipynb)
+
+- [01\_induction\_heads.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/01\_induction\_heads.ipynb)
+- [02\_sae.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/02\_sae.ipynb)
 
 ## Background: The Culture project
 
@@ -15,7 +16,7 @@ Logbooks:
 
 François Fleuret's culture project hypothesis is that intelligence emerges from "social competition" among different agents. The experiment trains five 37M parameter GPTs on programmatically generated 2D "world" quizzes. Once the models achieve sufficient accuracy (\>95%), they generate their own "culture" quizzes, potentially producing progressively more difficult quizzes and unique concepts through social interaction.
 
-## Motivation / why {#motivation-/-why}
+## Motivation / why
 
 From an interpretability perspective, this project offers several interesting aspects:
 
@@ -36,8 +37,8 @@ Integrating with the TransformerLens library presented some challenges:
 
 And some gotchas:
 
-- use\_past\_kv\_cache is buggy, probably due to the above hacks.
-- Input must be prepended with a 0 as a BOS token
+- `use_past_kv_cache` is buggy, probably due to the above hacks.
+- Input must be prepended with a 0 as a `BOS` token
 - For eval, only the final grid should be used
 
 Find model weights [here](https://huggingface.co/collections/tommyp111/culture-66c3463dff3d3581db9eabd2)
@@ -48,7 +49,7 @@ When ablating attention layers, I found the first layer had an outsized impact o
 
 ```
 Original: 2.84e-03
-Ablate attn (layer 0\) diff: 2.65e+00 **\# 1000x loss\!**
+Ablate attn (layer 0\) diff: 2.65e+00 # 1000x loss!
 Ablate attn (layer 1\) diff: 6.48e-03
 Ablate attn (layer 2\) diff: 2.92e-03
 Ablate attn (layer 3\) diff: 2.02e-03
@@ -69,7 +70,7 @@ My first thoughts for this were:
 - The first attention layer may function as a previous token circuit
 - Disabling this layer causes the model to lose the ability to attend to the previous token
 
-The most trivial method to optimize this problem is to copy grid Y to f(Y)with no transformations. I hypothesized that the first attention layer was a fixed distance induction circuit, copying the previous grid from 100 tokens away, requiring only a single attention head.
+The most trivial method to optimize this problem is to copy grid $Y$ to $f(Y)$ with no transformations. I hypothesized that the first attention layer was a fixed distance induction circuit, copying the previous grid from 100 tokens away, requiring only a single attention head.
 
 Attention patterns of layer 0 supported these conclusions, with head 0 showing the strongest indicator.  For the first 100 tokens (first grid) it would simply copy the previous token.
 
@@ -84,15 +85,15 @@ Testing the effect of ablating layer 0 on the "frame" task (hollow out one recta
 ![assets/figure2-interpreting-attn-layer0.png](assets/figure2-interpreting-attn-layer0.png)
 Figure 2: Interpreting Attention of Layer 0
 
-#### Ablating A\_0
+#### Ablating `A_0`
 
 Consistently predicts a special token directly after another special token, an *invalid board state*. I think this is predicted based on the more coarse positional encoding, since there is no lookback.
 
 Zero padding is likely due to the model predicting common dataset statistics, where blank cells being most common.
 
-#### End-to-end Induction Circuit with A\_0
+#### End-to-end Induction Circuit with `A_0`
 
-Induction heads are often called an "end-to-end circuit" mapping input directly to output logits. If the attention pattern writes directly into the output logit space, we can ablate *all* other layers & heads, and check if the output resembles the previous grid (essentially doing W\_E A\_0 W\_U).
+Induction heads are often called an "end-to-end circuit" mapping input directly to output logits. If the attention pattern writes directly into the output logit space, we can ablate *all* other layers & heads, and check if the output resembles the previous grid (essentially doing `W_E A_0 W_U`).
 
 Results show a close (but imperfect) representation of the previous grid. While I think I could further refine this representation, it seems a fairly trivial task.
 
@@ -156,7 +157,7 @@ Given these constraints, I tried two other approaches:
 
 **Found the top 3 most activating SAE features from each example, grouped by count:**
 
-10024: 14, 16302: 9, 13557: 9, 9081: 8, 12657: 8, 13626: 7, 10175: 7, 1525: 4
+`10024: 14, 16302: 9, 13557: 9, 9081: 8, 12657: 8, 13626: 7, 10175: 7, 1525: 4`
 
 Feature 10024 appeared frequently with significantly higher activation.
 
