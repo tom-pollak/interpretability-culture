@@ -1,8 +1,11 @@
 # Interpreting Culture
 
-> This project was partly made as an application for [MATS](https://www.matsprogram.org/) program
+> This project was built in part as an application for [MATS](https://www.matsprogram.org/) program
 
 > This project builds upon [Francois Fleuret culture](https://fleuret.org/cgi-bin/gitweb/gitweb.cgi?p=culture.git;a=tree) (with his permission).
+
+
+## [Report](./report.md)
 
 ## Setup
 
@@ -19,10 +22,6 @@ git apply ../transfomer_lens_final_ln.patch
 pip install -e .
 ```
 
-## Interpretability Report:
-
-- [01_induction_heads.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/01_induction_heads.ipynb)
-- [02_sae.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/02_sae.ipynb)
 
 
 ## Motivation / why
