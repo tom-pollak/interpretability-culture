@@ -14,7 +14,7 @@ Logbooks:
 
 I investigate training GPTs on 2D grid quizzes (Similar to ARC-AGI)
 
-I train a SAE on a single layer MLP and find feature corresponding to a single ability on a single task
+I train a SAE on a single layer MLP and find a feature corresponding to a single ability on a single task
 - Find consistent behaviour when ablating it, and recover most of the performance when boosting 
     a single feature
 
