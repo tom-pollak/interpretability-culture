@@ -4,6 +4,16 @@
 
 > This project builds upon [Francois Fleuret culture](https://fleuret.org/cgi-bin/gitweb/gitweb.cgi?p=culture.git;a=tree) (with his permission).
 
+## TL;DR
+
+I investigate training GPTs on 2D grid quizzes (Similar to ARC-AGI)
+
+I train a SAE on a single layer MLP and find a feature corresponding to a single ability on a single task
+- Find consistent behaviour when ablating it, and recover most of the performance when boosting 
+    a single feature
+
+I also find fixed length induction circuits
+  - Find these are (noisy) end-to-end circuits for recovering the input grid
 
 ## [Report](./report.md)
 
