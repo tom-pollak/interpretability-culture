@@ -10,6 +10,17 @@ Logbooks:
 - [01\_induction\_heads.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/01\_induction\_heads.ipynb)
 - [02\_sae.pynb](https://nbviewer.org/github/tom-pollak/interpretability-culture/blob/main/02\_sae.ipynb)
 
+## TL;DR
+
+I investigate training GPTs on 2D grid quizzes (Similar to ARC-AGI)
+
+I train a SAE on a single layer MLP and find feature corresponding to a single ability on a single task
+- Find consistent behaviour when ablating it, and recover most of the performance when boosting 
+    a single feature
+
+I also find fixed length induction circuits
+  - Find these are (noisy) end-to-end circuits for recovering the input grid
+
 ## Background: The Culture project
 
 [*https://fleuret.org/public/culture/draft-paper.pdf*](https://fleuret.org/public/culture/draft-paper.pdf)
