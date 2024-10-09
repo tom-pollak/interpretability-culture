@@ -15,7 +15,7 @@ I train a SAE on a single layer MLP and find a feature corresponding to a single
 I also find fixed length induction circuits
   - Find these are (noisy) end-to-end circuits for recovering the input grid
 
-## [Report](./report.md)
+## [Report](https://docs.google.com/document/d/1km2m3oWZMDrekV9_mYHft5pX9PjrM4imKGEdK9vVMr8/edit?usp=sharing)
 
 ## Setup
 
