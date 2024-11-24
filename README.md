@@ -5,7 +5,7 @@
 > This project builds upon [Francois Fleuret culture](https://fleuret.org/cgi-bin/gitweb/gitweb.cgi?p=culture.git;a=tree) (with his permission).
 
 
-## [Report](./report.md)
+## [Report]([./report.md](https://docs.google.com/document/d/1km2m3oWZMDrekV9_mYHft5pX9PjrM4imKGEdK9vVMr8/edit?usp=sharing))
 
 ## Setup
 
